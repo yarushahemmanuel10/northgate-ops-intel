@@ -43,6 +43,11 @@ uv run python -m pipeline.ingest.run                           # in another
 
 Writes text-only staging tables with lineage to `data/staging/` (D-017).
 
+```
+uv run python -m pipeline.validate.run     # typed tables and findings in data/validated/ (D-018)
+uv run python -m eval.validation_report    # scores against the answer key and the unseen-values fixture
+```
+
 ## What is committed and what is generated
 
 <!-- files-table:start -->
@@ -57,6 +62,7 @@ Writes text-only staging tables with lineage to `data/staging/` (D-017).
 | `data/raw/` | No | Messy sources the platform ingests | `python -m generator.run` (step 2) |
 | `data/ground_truth/` | No | Answer keys: true accounts, known issues, KB links | `python -m generator.run` (step 2) |
 | `data/staging/` | No | Ingested text-only tables with lineage | `python -m pipeline.ingest.run` |
+| `data/validated/` | No | Typed tables and validation findings | `python -m pipeline.validate.run` |
 | `.env` | No | API key (never committed) | You |
 
 Everything under `data/` is reproduced exactly from the seed in `config/generator.yaml`.

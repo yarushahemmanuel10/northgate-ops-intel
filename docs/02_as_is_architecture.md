@@ -158,6 +158,22 @@ reduce telecoms revenue.
 **Telecoms mismatches (QI-11)** never involve at-risk customers, look-alike pairs or the
 account-switch trap, so no planted signal is erased.
 
+**Where each problem is handled.**
+
+| QI | Problem | Handled in | How it is measured |
+|---|---|---|---|
+| QI-01 | Name variants | Step 2.3 entity resolution | Precision/recall of matches against the true accounts |
+| QI-02 | No shared customer ID | Step 2.3 entity resolution | Same |
+| QI-03 | Mixed date formats | Step 2.2 validation (`DATE-001/002/003`) | Recall and exact-value correctness |
+| QI-04 | Duplicates (CRM accounts, orders, bills) | Step 2.3 (CRM duplicates, as entity resolution) and Phase 3 build (orders and bills, deduplication rules) | Duplicates found against `known_issues.csv`; reconciliation tests |
+| QI-05 | Invalid values | Step 2.2 validation (`TIME-001`, `PRIORITY-002`, `QTY-001`, `ARITH-001/002`, `MONEY-001`) | Recall and precision |
+| QI-06 | Category variants | Step 2.4 semantic layer (controlled vocabulary) | Share of tickets mapped to the right canonical category |
+| QI-07 | Personal data in ticket text | Phase 6 masking | Precision/recall against the logged `pii_span` entries |
+| QI-08 | Missing values | Step 2.2 validation (`MISSING-001/002/003`); KB links cannot be detected | Recall, with the undetectable cases stated |
+| QI-09 | Link to superseded article | Phase 5 assistant (retrieval excludes superseded articles) and Phase 4 KB report (BQ-12) | Superseded article never cited; outdated links listed |
+| QI-10 | Cancelled, refunded, credit notes | Step 2.2 labels (`revenue_treatment`), applied in Phase 3/4 revenue | Label recall; revenue reconciles with the clean figure |
+| QI-11 | CRM/telecoms mismatches | Phase 3/4, BQ-13 check | The three BQ-13 lists against the answer key |
+
 | ID | Problem | Systems | How Layer 1 is expected to handle it |
 |---|---|---|---|
 | QI-01 | Same customer under different names | All four data systems | Entity resolution with review queue |

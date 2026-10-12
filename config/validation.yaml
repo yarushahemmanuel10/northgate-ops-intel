@@ -1,0 +1,43 @@
+# Validation and typing rules (Layer 1, step 2.2). Conventions come from
+# docs/02_as_is_architecture.md §1.7. Nothing is guessed: a value either matches a
+# documented rule and is converted, or it is kept as text and flagged (D-018).
+
+as_of_date: 2026-09-30
+
+dates:
+  # Accepted formats per source, tried in order. Day-first numeric dates (dd/mm/yyyy) with
+  # day <= 12 are converted by the source's documented convention and reported as such.
+  crm: ["%Y-%m-%d", "%d/%m/%Y", "%d %b %Y"]
+  helpdesk_timestamp: ["%Y-%m-%d %H:%M", "%d/%m/%Y %H:%M"]
+  telecoms_bill_month: ["%Y-%m", "%b-%y", "%m/%Y"]
+  telecoms_date: ["%Y-%m-%d"]
+  shop_timestamp: ["%Y-%m-%d %H:%M"]
+  shop_date: ["%Y-%m-%d"]
+  plausible_range: [2000-01-01, 2035-12-31]
+
+money:
+  # Accepted: optional "£" or trailing " GBP", digits with optional comma thousands
+  # separators in groups of three, optional decimals, optional "k" (thousands) suffix.
+  # Anything else (spaces, "m", words, negatives, decimal commas) is flagged.
+  allow_k_suffix: true
+
+priorities:
+  valid: [P1, P2, P3, P4]
+  case_insensitive: true    # "p2" is the same label in a different case, not a guess
+  # Explicit mappings for non-standard values. Empty on purpose: "Urgent", "N/A" and "P5"
+  # cannot be mapped to a priority without guessing what the agent meant.
+  mapping: {}
+
+shop:
+  statuses: [placed, dispatched, delivered, cancelled, refunded]
+  revenue_treatment: {placed: include, dispatched: include, delivered: include,
+                      cancelled: exclude, refunded: exclude}
+
+telecoms:
+  credit_note_prefix: "CN-"
+
+crm:
+  statuses: [active, closed]
+  business_lines: [BL1, BL2, BL3, BL4]
+
+arithmetic_tolerance: 0.01
