@@ -48,11 +48,14 @@ the company name, which each team writes differently.
 
 - **Purpose:** the account managers' list of customers and contracts.
 - **Records:** two sheets.
-  - *Accounts* — one row per customer: `account_id` (`ACC-0001`), `company_name`,
-    `sector`, `account_manager`, `status` (active, closed).
+  - *Accounts* — one row per customer, including shop-only customers: `account_id`
+    (`ACC-0001`), `company_name`, `sector`, `account_manager`, `customer_since`,
+    `status` (active, closed), `closed_date`.
   - *Contract lines* — one row per business line sold to a customer: `line_id`
     (`CL-0001`), `account_id`, `business_line` (BL1–BL4), `annual_value`,
     `contract_start`, `renewal_date`. Shop purchases (BL5) have no contract line.
+- **Headers:** written in the workbook as people type them ("Account ID", "Annual Value
+  (GBP)"); the semantic layer maps them to the field names above.
 - **Identifier scheme:** sequential account IDs; the most trusted customer list, so the
   platform treats it as the master list for canonical customers.
 - **Known quality problems:**

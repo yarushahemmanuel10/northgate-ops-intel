@@ -146,7 +146,7 @@ def generate(cfg: dict[str, Any], rng: np.random.Generator, fake: Faker) -> tupl
     lo_b, hi_b = cv["shop_annual_budget_range"]
     budgets = [int(round(uptake_rng.uniform(lo_b, hi_b), -2)) if takes["BL5"][i] else 0 for i in range(n)]
 
-    customers["first_contract_start"] = first_start
+    customers["customer_since"] = first_start
     customers["status"] = ["closed" if r == "closed" else "active" for r in role]
     customers["closed_date"] = closed_date
     customers["is_new_in_window"] = role == "new"
@@ -184,8 +184,8 @@ def generate(cfg: dict[str, Any], rng: np.random.Generator, fake: Faker) -> tupl
     lines_df.insert(0, "line_id", [f"CL-{i:04d}" for i in range(1, len(lines_df) + 1)])
 
     # Sanity: the role rules the rest of the pipeline relies on.
-    assert all(customers.loc[customers.at_risk, "first_contract_start"] < trend_start)
-    assert customers.loc[customers.is_new_in_window, "first_contract_start"].min() >= window_start
+    assert all(customers.loc[customers.at_risk, "customer_since"] < trend_start)
+    assert customers.loc[customers.is_new_in_window, "customer_since"].min() >= window_start
     return customers, lines_df
 
 
@@ -211,7 +211,7 @@ def expected_revenue(cfg: dict[str, Any], customers: pd.DataFrame, lines: pd.Dat
         totals[row.business_line] += row.annual_value / 12 * active_months(row.contract_start, row.end_date)
     for row in customers.itertuples():
         if row.shop_annual_budget:
-            totals["BL5"] += row.shop_annual_budget / 12 * active_months(row.first_contract_start, row.closed_date)
+            totals["BL5"] += row.shop_annual_budget / 12 * active_months(row.customer_since, row.closed_date)
 
     grand = sum(totals.values())
     out = pd.DataFrame({

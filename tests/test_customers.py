@@ -89,16 +89,16 @@ def test_new_closed_and_at_risk_are_disjoint(data):
 
 def test_new_customers_start_inside_window(cfg, data):
     customers, _ = data
-    starts = customers.loc[customers.is_new_in_window, "first_contract_start"]
+    starts = customers.loc[customers.is_new_in_window, "customer_since"]
     assert starts.between(cfg["window"]["start"], cfg["as_of_date"]).all()
-    assert (customers.loc[~customers.is_new_in_window, "first_contract_start"] < cfg["window"]["start"]).all()
+    assert (customers.loc[~customers.is_new_in_window, "customer_since"] < cfg["window"]["start"]).all()
 
 
 def test_at_risk_customers_are_established(data):
     customers, lines = data
     risk = customers[customers.at_risk]
     assert (risk.status == "active").all()
-    assert (risk.first_contract_start < TREND_START).all()
+    assert (risk.customer_since < TREND_START).all()
     for bl_list in risk.business_lines:
         bls = bl_list.split(";")
         assert "BL1" in bls and ("BL2" in bls or "BL5" in bls)
@@ -149,7 +149,7 @@ def test_lines_agree_with_customer_business_lines(data):
 
 def test_line_dates(cfg, data):
     customers, lines = data
-    first = customers.set_index("account_id").first_contract_start
+    first = customers.set_index("account_id").customer_since
     for row in lines.itertuples():
         assert row.contract_start >= first[row.account_id]
         if row.end_date is None:
@@ -225,7 +225,7 @@ def test_substreams_are_independent(cfg):
     other["customers"]["lookalike_company_pairs"] = 3
     a = generate(cfg, *make_rngs(cfg["seed"]))
     b = generate(other, *make_rngs(cfg["seed"]))
-    cols = ["account_id", "first_contract_start", "status", "closed_date", "is_new_in_window",
+    cols = ["account_id", "customer_since", "status", "closed_date", "is_new_in_window",
             "at_risk", "business_lines", "shop_annual_budget"]
     assert a[0][cols].equals(b[0][cols])
     assert a[1].equals(b[1])

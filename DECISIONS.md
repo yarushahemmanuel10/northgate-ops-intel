@@ -56,3 +56,15 @@ One entry per design choice: the choice, the alternatives considered, and the re
 - **Choice:** `make_rngs(seed)` creates one numpy Generator and one Faker instance from the project seed. Inside the generator, the numpy Generator is split with `Generator.spawn()` into child streams for names, roles and dates, line uptake and shop budgets, and contract lines. Faker is used only for names.
 - **Alternatives:** draw everything from one stream in sequence.
 - **Reason:** With one shared stream, any change to how names are drawn shifts every later draw, so a cosmetic change to names would silently change roles, dates and revenue. Separate streams keep each part stable when another part changes (tested in `test_substreams_are_independent`). While building this, a single shared stream also showed that `permutation()` results barely changed when only a few earlier draws changed, which made the coupling between parts hard to reason about. Separate streams avoid relying on that behaviour.
+
+## D-009: Shop-only customers are CRM accounts; "customer since" replaces "first contract start"
+- **Choice:** Customers who buy only from the shop (BL5) appear on the CRM Accounts sheet like every other customer, with no rows on the Contract Lines sheet. The Accounts sheet carries `Customer Since`: the date the customer relationship began (for shop-only customers, when their account was opened). Contract dates live only on the Contract Lines sheet. The ground-truth column is renamed from `first_contract_start` to `customer_since` to match.
+- **Basis in the fact sheet:** onboarding (`docs/01_business_processes.md` §2.1) starts with the account manager adding every new customer to the CRM workbook, and the CRM is the master list of canonical customers (`02` §1.3). A customer missing from the master list could never be resolved.
+- **Consequence:** BQ-16 (onboarding) uses each customer's earliest contract line start, so shop-only customers, who are not onboarded through support, are excluded from it.
+- **Alternatives:** leave shop-only customers out of the CRM (breaks the master-list rule and makes their shop orders unmatchable); give them a dummy BL5 contract line (invents a contract that doesn't exist and contradicts D-003).
+
+## D-010: Same synthetic-data marker on every data sheet and CSV
+- **Choice:** Row 1 of each data sheet in the CRM workbook holds the same `# SYNTHETIC DATA ...` marker as the first line of the CSV files; headers are on row 2. The workbook also has a README sheet.
+- **Alternatives:** README sheet only, with headers on row 1 as in a typical export.
+- **Reason:** Every file and every sheet stays labelled even if copied out on its own, and all connectors handle the marker the same way (skip one row). The cost is that the workbook is slightly less like a real export, which is acceptable because realism is not the point of the marker.
+- **Determinism:** the workbook's created and modified dates and the zip entry timestamps are fixed at 2026-09-30 18:00, so the same seed always produces a byte-identical file.

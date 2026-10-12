@@ -101,7 +101,8 @@ solves. The full inventory, with known quality problems, is in
 | Support tickets | about 1,500 |
 | Shop orders | about 3,000 |
 | Knowledge base | 50 documents (help articles plus SLA policies) |
-| New customers onboarded during the window | about 15 (first contract start inside the window) |
+| New customers onboarded during the window | about 15 (customer since a date inside the window) |
+| Shop-only customers (BL5 only, no contract line) | a handful; listed in the CRM like every customer (D-009) |
 
 ### 1.7 As-of date and time rules
 

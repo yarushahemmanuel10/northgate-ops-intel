@@ -167,13 +167,14 @@ of scope.
 ### BQ-16 — Is onboarding on track for new customers?
 - **Asked by:** account managers
 - **Decision supported:** `01` §2.1 — is onboarding on track
-- **Sources:** CRM (first contract start), helpdesk
+- **Sources:** CRM contract lines (earliest contract start per customer), helpdesk
 - **Answered by:** Layers 1 and 3
 - **Relieves:** PP-01
-- **Answered when:** for every customer whose first contract starts inside the data window
+- **Answered when:** for every customer whose earliest contract line starts inside the data window
   and at least 30 days before the as-of date, the platform shows tickets and P1/P2
   tickets raised in the first 30 days, flags customers above a stated threshold, and
-  matches a hand calculation on a fixed dataset.
+  matches a hand calculation on a fixed dataset. Shop-only customers have no contract
+  line, are not onboarded through support, and are excluded (D-009).
 
 ## 2. Out of scope for the prototype
 
