@@ -86,3 +86,92 @@ solves. The full inventory, with known quality problems, is in
 | Support tickets | about 1,500 |
 | Shop orders | about 3,000 |
 | Knowledge base | 50 documents (help articles plus SLA policies) |
+
+## 2. Core processes
+
+Each process below has a map, a short narrative, the systems it touches, and the decisions
+managers make in it. The decisions matter most: they are what the platform must support,
+and the business questions in `03_requirements.md` are derived from them.
+
+### 2.1 Customer onboarding
+
+```mermaid
+flowchart TD
+    A[Deal agreed by account manager] --> B[Account created in CRM workbook]
+    B --> C{Which business lines?}
+    C -->|BL1 support| D[Customer set up in helpdesk tool]
+    C -->|BL2 telecoms| E[Customer set up in telecoms billing system]
+    C -->|BL5 shop| F[Customer account created in online shop]
+    D --> G[Engineer site survey and device audit]
+    E --> H[Line order placed with carrier]
+    G --> I[Devices enrolled, users added]
+    H --> J[Line live, first bill raised]
+    F --> K[Customer can order online]
+    I --> L[30-day onboarding review]
+    J --> L
+    K --> L
+    L --> M[Customer moves to business as usual]
+```
+
+**Narrative.** Once a deal is agreed, the account manager adds the customer to the CRM
+workbook with contract value, start date and renewal date. Each other team then creates
+the customer again in its own system: the service desk in the helpdesk tool, the telecoms
+team in the billing system, procurement in the online shop. Each person types the company
+name their own way and each system issues its own ID. Nothing links these records except
+the name. After 30 days the account manager runs an onboarding review.
+
+**Systems touched:** CRM workbook, helpdesk tool, telecoms billing system, online shop.
+
+| Decision | Who decides | Data needed | How it is done today |
+|---|---|---|---|
+| Is onboarding on track, or is the customer already unhappy? | Account manager | Tickets raised in the first 30 days, open P1/P2 tickets | Asks the service desk lead; no report exists |
+| Have we started billing for everything sold? | Finance | CRM contract lines compared with telecoms bills and support contract | Manual cross-check of workbook against billing export |
+| Which customers took only one line and could buy more? | Account manager, directors | Business lines per customer across all systems | Not possible without matching customers by hand |
+
+**Data created here that causes problems later:** the same customer under different names
+and IDs in four systems. This is the root cause of most integration work in Layer 1.
+
+### 2.2 Support ticket lifecycle
+
+```mermaid
+flowchart TD
+    A[Customer reports issue by phone, email or portal] --> B[Agent logs ticket in helpdesk tool]
+    B --> C[Agent sets priority P1-P4 and category]
+    C --> D{Known issue?}
+    D -->|Yes| E[Agent follows knowledge base article]
+    D -->|No| F[Agent investigates]
+    E --> G{Resolved at first line?}
+    F --> G
+    G -->|Yes| H[Resolution notes written]
+    G -->|No| I[Escalated to engineer or specialist team]
+    I --> J{On-site visit needed?}
+    J -->|Yes| K[Engineer visit booked]
+    J -->|No| L[Remote fix]
+    K --> H
+    L --> H
+    H --> M[Ticket closed]
+    M --> N[Monthly SLA report built by hand]
+```
+
+**Narrative.** Customers report problems by phone, email or the portal. An agent logs the
+ticket, types the customer name, and sets a priority and category. If the problem is
+known, the agent follows a knowledge base article; otherwise they investigate or escalate
+to an engineer. SLA clocks run from the moment the ticket opens (see fact sheet §1.3).
+When the ticket closes, the agent writes resolution notes and, if relevant, links the
+knowledge base article used. Each month the service desk lead exports tickets to a
+spreadsheet to calculate SLA compliance.
+
+**Systems touched:** helpdesk tool, knowledge base. Engineers sometimes check the CRM
+workbook to see what the customer pays for.
+
+| Decision | Who decides | Data needed | How it is done today |
+|---|---|---|---|
+| Which open tickets are about to breach SLA, and who should pick them up? | Service desk lead | Open tickets, priority, time elapsed against target | Scans the helpdesk queue by eye |
+| Are we meeting SLA by priority this month? | Service desk lead, operations director | Closed tickets with open and close times, priority | Monthly export to spreadsheet, formulas by hand |
+| Which customers generate unusual ticket volume, and why? | Service desk lead, account manager | Tickets per customer over time, categories | Rarely done; customer names in tickets are inconsistent |
+| Is the knowledge base helping, and which articles are out of date? | Service desk lead | Article links on tickets, first-line resolution rate, article status | Not measured |
+| How should a new agent handle this problem? | Agent | Relevant knowledge base articles and similar past tickets | Searches the knowledge base by keyword, or asks a colleague |
+
+**Data quality problems created here:** customer names typed freely by agents, vague
+descriptions, inconsistent categories, personal data (names, emails, phone numbers) in
+free text, and missing or wrong links to knowledge base articles.
