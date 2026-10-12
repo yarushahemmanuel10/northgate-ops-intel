@@ -1,0 +1,26 @@
+[project]
+name = "northgate-ops-intel"
+version = "0.1.0"
+description = "Prototype AI-assisted operational intelligence platform for a fictional managed IT provider (synthetic data)"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+authors = [{ name = "Yarushah Emmanuel Sardar" }]
+dependencies = [
+    "pandas==3.0.6",
+    "numpy==2.5.4",
+    "faker==40.43.0",
+    "openpyxl==3.1.5",
+    "pyyaml==6.0.3",
+    "fastapi==0.143.0",
+    "uvicorn==0.54.0",
+    "httpx==0.28.1",
+]
+
+[dependency-groups]
+dev = ["pytest==9.1.1"]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

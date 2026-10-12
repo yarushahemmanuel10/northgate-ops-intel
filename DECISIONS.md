@@ -28,3 +28,9 @@ One entry per design choice: the choice, the alternatives considered, and the re
 - **Choice:** Add a `first_responded_at` field to the helpdesk export and measure response SLA as well as resolution SLA.
 - **Alternatives:** Drop response SLA and report resolution SLA only.
 - **Reason:** Response time is a standard MSP service level and appears in the fact sheet's SLA table. Tickets missing the field are excluded from response compliance and counted separately rather than guessed.
+
+## D-005: Python 3.12, uv, exact pins and a committed lock file
+- **Choice:** Python 3.12 managed by `uv`. Direct dependencies pinned to exact versions (`==`) in `pyproject.toml`; the full resolved tree, including transitive packages, committed in `uv.lock`. New packages are added per phase, each named in the step that adds it.
+- **Alternatives:** pip with `requirements.txt`; lower-bound pins (`>=`); conda; Python 3.11 or 3.13.
+- **Reason:** Anyone cloning the repo gets the same versions with `uv sync`, which is needed for every figure to be reproducible. 3.12 meets the brief's 3.11+ requirement and is widely supported by the libraries planned (sentence-transformers, ChromaDB, Prefect, Streamlit). Exact pins in `pyproject.toml` make the versions visible without reading the lock file.
+- **Note:** the build environment used during development keeps its virtual environment in `.venv-linux/` (ignored by git), so a local `uv sync` on macOS can create its own `.venv/` without clashing.
