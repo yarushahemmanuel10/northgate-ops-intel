@@ -69,15 +69,16 @@ customers:
 # Annual values in GBP, drawn uniformly and rounded to the nearest 100. Ranges were
 # calibrated on the average of seeds 1-50 (not on the project seed), so the expected
 # revenue mix lands near revenue_share_targets on average (D-007).
+# Reproduce with: python -m generator.customers --calibrate 1 50
 contract_values:
   annual_value_range:
-    BL1: [5300, 18000]
-    BL2: [7100, 23400]     # CRM value; BL2 revenue itself comes from billing (D-003)
+    BL1: [5300, 17900]
+    BL2: [7200, 23700]     # CRM value; BL2 revenue itself comes from billing (D-003)
     BL3: [5700, 20800]
-    BL4: [9300, 32000]
+    BL4: [9200, 31600]
   # BL5 has no contract line. Each shop customer gets an annual spend budget that the
   # shop generator realises as orders.
-  shop_annual_budget_range: [1600, 9000]
+  shop_annual_budget_range: [1600, 9100]
   term_years_weights: {1: 0.5, 2: 0.3, 3: 0.2}
 
 tickets:

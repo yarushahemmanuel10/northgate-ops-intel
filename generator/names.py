@@ -36,20 +36,29 @@ TRADES = {
                      "Electrical Contractors"],
 }
 
-# Trade words with a confusingly similar alternative, used for look-alike pairs.
-LOOKALIKE_TRADES = {
-    "Logistics": ("logistics", "Logistic Services"),
-    "Transport": ("logistics", "Transport Services"),
-    "Engineering": ("manufacturing", "Engineers"),
-    "Accountants": ("professional services", "Accountancy"),
-    "Dental Care": ("healthcare", "Dental Centre"),
-    "Interiors": ("retail", "Interior Design"),
-    "Roofing": ("construction", "Roofing Services"),
-    "Builders": ("construction", "Building Services"),
-}
+# Look-alike pairs: two different companies whose names are easy to confuse. Each pair
+# uses a different kind of confusion, so entity resolution is tested on each kind.
+LOOKALIKE_KINDS = ("legal_form", "word_added", "surname", "trade_word")
 
-SUFFIXES = ["Ltd", "Limited", "Ltd", "Ltd", "Group Ltd", "& Co Ltd"]
+LEGAL_FORM_TRADES = ["Accountants", "Solicitors", "Surveyors", "Architects"]   # professional services
+WORD_ADDED = [  # (sector, shorter trade, longer trade)
+    ("construction", "Roofing", "Roofing Supplies"),
+    ("logistics", "Transport", "Transport Hire"),
+    ("manufacturing", "Engineering", "Engineering Services"),
+    ("healthcare", "Dental Care", "Dental Care Centre"),
+]
+NEAR_SURNAMES = [("Thompson", "Thomson"), ("Phillips", "Philips"), ("Clarke", "Clark"),
+                 ("Stephenson", "Stevenson"), ("Matthews", "Mathews"), ("Reid", "Reed")]
+NEAR_TRADES = [  # (sector, trade, near-identical trade)
+    ("professional services", "Accountants", "Accountancy"),
+    ("manufacturing", "Engineering", "Engineers"),
+    ("construction", "Builders", "Building Services"),
+    ("retail", "Interiors", "Interior Design"),
+]
+
 CHARITY_SUFFIXES = ["", "CIO"]
+# "& Co" reads naturally after a surname in trades and firms, not after e.g. "Day Nursery".
+CO_SECTORS = {"professional services", "construction", "manufacturing", "logistics"}
 LEGAL_SUFFIX_RE = re.compile(r"\s+(group ltd|& co ltd|ltd|limited|llp|cio)\.?$", re.IGNORECASE)
 
 TELECOMS_FIELD_LENGTH = 20
@@ -65,9 +74,8 @@ def is_blocked(name: str, blocklist: list[str]) -> bool:
     return any(token.lower() in low for token in blocklist)
 
 
-def _suffix(sector: str, rng: np.random.Generator) -> str:
-    options = CHARITY_SUFFIXES if sector == "charities" else SUFFIXES
-    return str(options[rng.integers(len(options))])
+def _pick(options, rng: np.random.Generator):
+    return options[int(rng.integers(len(options)))]
 
 
 def _join(*parts: str) -> str:
@@ -75,26 +83,45 @@ def _join(*parts: str) -> str:
 
 
 def make_name(sector: str, rng: np.random.Generator, fake: Faker) -> str:
-    """One fictional company name for a sector."""
-    trade = str(TRADES[sector][rng.integers(len(TRADES[sector]))])
-    place = str(PLACES[rng.integers(len(PLACES))])
-    pattern = rng.choice(["place", "surname", "partners", "group"], p=[0.6, 0.2, 0.1, 0.1])
+    """One fictional company name for a sector.
+
+    Patterns: place + trade (about 65%), surname + trade (20%), two surnames + trade (10%),
+    place + trade + "Group" (5%). "& Co" is only used after a surname, in CO_SECTORS.
+    """
+    trade = str(_pick(TRADES[sector], rng))
+    place = str(_pick(PLACES, rng))
+    if sector == "charities":
+        return _join(place, trade, str(_pick(CHARITY_SUFFIXES, rng)))
+    pattern = rng.choice(["place", "surname", "partners", "group"], p=[0.65, 0.20, 0.10, 0.05])
     if pattern == "surname":
-        return _join(fake.last_name(), trade, _suffix(sector, rng))
-    if pattern == "partners" and sector != "charities":
-        return _join(f"{fake.last_name()} & {fake.last_name()}", trade, "LLP" if sector == "professional services" else "Ltd")
-    if pattern == "group" and sector != "charities":
+        suffixes = ["Ltd", "Ltd", "Limited"] + (["& Co Ltd"] if sector in CO_SECTORS else [])
+        return _join(fake.last_name(), trade, str(_pick(suffixes, rng)))
+    if pattern == "partners":
+        legal = "LLP" if sector == "professional services" else "Ltd"
+        return _join(f"{fake.last_name()} & {fake.last_name()}", trade, legal)
+    if pattern == "group":
         return _join(place, trade, "Group Ltd")
-    return _join(place, trade, _suffix(sector, rng))
+    return _join(place, trade, str(_pick(["Ltd", "Ltd", "Limited"], rng)))
 
 
-def make_lookalike_pair(rng: np.random.Generator) -> tuple[str, str, str]:
-    """Two different companies with confusingly similar names, and their sector."""
-    keys = list(LOOKALIKE_TRADES)
-    trade = keys[rng.integers(len(keys))]
-    sector, similar = LOOKALIKE_TRADES[trade]
-    place = str(PLACES[rng.integers(len(PLACES))])
-    return _join(place, trade, "Ltd"), _join(place, similar, "Ltd"), sector
+def make_lookalike_pair(kind: str, rng: np.random.Generator, fake: Faker) -> tuple[str, str, str]:
+    """Two different companies with confusingly similar names, and their shared sector."""
+    place = str(_pick(PLACES, rng))
+    if kind == "legal_form":       # only the legal form differs
+        base = _join(f"{fake.last_name()} & {fake.last_name()}", str(_pick(LEGAL_FORM_TRADES, rng)))
+        return f"{base} LLP", f"{base} Ltd", "professional services"
+    if kind == "word_added":       # a word added or dropped
+        sector, short, long = _pick(WORD_ADDED, rng)
+        return _join(place, short, "Ltd"), _join(place, long, "Ltd"), sector
+    if kind == "surname":          # near-identical surnames, same trade
+        a, b = _pick(NEAR_SURNAMES, rng)
+        sector = str(_pick(["construction", "logistics", "manufacturing"], rng))
+        trade = str(_pick(TRADES[sector], rng))
+        return _join(a, trade, "Ltd"), _join(b, trade, "Ltd"), sector
+    if kind == "trade_word":       # near-identical trade words, same place
+        sector, t1, t2 = _pick(NEAR_TRADES, rng)
+        return _join(place, t1, "Ltd"), _join(place, t2, "Ltd"), sector
+    raise ValueError(f"unknown look-alike kind: {kind}")
 
 
 # --- name variants (QI-01) ---------------------------------------------------

@@ -40,9 +40,19 @@ One entry per design choice: the choice, the alternatives considered, and the re
 - **What is not claimed:** names were not checked against Companies House or any register of real companies, which cannot be done offline. Because the names are built from common words, some may coincidentally match real businesses. Documents say "fictional" and never "verified not to exist".
 - **Alternatives:** an online check against Companies House (needs network and an API key, and still can't rule out unregistered businesses); obviously artificial names such as "Company 017" (removes the realistic name messiness that entity resolution must handle).
 - **Reason:** Realistic names are needed for realistic matching problems; honest wording keeps the claim to what can be verified.
+- **The provider's own name:** "Northgate IT Services Ltd" is a made-up company name and has no connection to any real company called Northgate, including Northgate plc in Darlington.
+- **Name patterns:** place + trade (about 65%), surname + trade (20%), two surnames + trade (10%), place + trade + "Group Ltd" (5%). "& Co" is only used after a surname, and only in sectors where it reads naturally.
 
 ## D-007: Uptake and contract values calibrated to the target revenue mix
-- **Choice:** Each business line is taken by exactly `round(rate × 120)` customers (plus a few forced so at-risk customers have the lines their pattern needs). Annual value ranges per line live in `config/generator.yaml` and were calibrated on the average of seeds 1–50, not on the project seed.
-- **Expected mix:** computed by `python -m generator.customers` over the 18-month window, counting whole active months. BL2 and BL5 figures at this stage are stand-ins (CRM BL2 value and shop budgets); real BL2 and BL5 revenue is measured after the billing and shop generators run.
-- **Alternatives:** independent random uptake per customer (seed-dependent mix: up to 8 points off target on some seeds); tuning ranges on the project seed alone (fits that seed exactly but is overfitted, and drifts on others).
-- **Reason:** The mix should be near target because of the design, not because of a lucky seed. Tests check the project seed is within 1.5 points of every target and held-out seeds 101–110 within 3 points.
+- **Choice:** Each business line is taken by exactly `round(rate × 120)` customers (plus a few forced so at-risk customers have the lines their pattern needs). Annual value ranges per line live in `config/generator.yaml` and were calibrated on the average of seeds 1–50, not on the project seed (`python -m generator.customers --calibrate 1 50`).
+- **Result for the project seed** (`python -m generator.customers`): BL1 +0.7, BL2 −1.7, BL3 +0.1, BL4 −0.1, BL5 +0.9 percentage points from target.
+- **Held-out seeds 101–130** (`python -m generator.customers --spread 101 130`), not used for calibration: every line within −2.8 to +2.7 points of target.
+- **Tests:** the project seed and held-out seeds 101–110 must each be within ±3 points of every target.
+- **How the design got here (exploratory runs of earlier code, not reproducible from the current version):** with independent random uptake per customer and ranges tuned on the project seed alone, the project seed hit every target exactly but seeds 1–20 put BL2 between +2.1 and +13.5 points off. Calibrating on the average of seeds 1–50 but keeping random uptake still left held-out seeds between −7.0 and +5.0 points, and the project seed's BL2 at −6.1. Fixing uptake counts removed most of that variation.
+- **Caveat:** BL2 and BL5 figures at this stage are stand-ins (CRM BL2 value and shop budgets). Real BL2 and BL5 revenue is measured after the billing and shop generators run.
+- **Reason:** The mix should be near target because of the design, not because of a lucky seed.
+
+## D-008: One independent random stream per concern
+- **Choice:** `make_rngs(seed)` creates one numpy Generator and one Faker instance from the project seed. Inside the generator, the numpy Generator is split with `Generator.spawn()` into child streams for names, roles and dates, line uptake and shop budgets, and contract lines. Faker is used only for names.
+- **Alternatives:** draw everything from one stream in sequence.
+- **Reason:** With one shared stream, any change to how names are drawn shifts every later draw, so a cosmetic change to names would silently change roles, dates and revenue. Separate streams keep each part stable when another part changes (tested in `test_substreams_are_independent`). While building this, a single shared stream also showed that `permutation()` results barely changed when only a few earlier draws changed, which made the coupling between parts hard to reason about. Separate streams avoid relying on that behaviour.

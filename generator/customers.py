@@ -18,7 +18,7 @@ import pandas as pd
 from faker import Faker
 
 from generator.config import BUSINESS_LINES, load_config
-from generator.names import core_name, is_blocked, make_lookalike_pair, make_name
+from generator.names import LOOKALIKE_KINDS, core_name, is_blocked, make_lookalike_pair, make_name
 
 ROOT = Path(__file__).resolve().parents[1]
 GROUND_TRUTH_DIR = ROOT / "data" / "ground_truth"
@@ -66,35 +66,35 @@ def _month_starts(start: dt.date, end: dt.date) -> list[dt.date]:
 # --- generation ---------------------------------------------------------------
 
 def _unique_names(cfg: dict[str, Any], rng: np.random.Generator, fake: Faker) -> pd.DataFrame:
-    """120 names: look-alike pairs first, then ordinary names, all unique by core name."""
+    """120 names: look-alike pairs first, then ordinary names.
+
+    Core names (legal suffix removed) are unique, except inside a "legal_form" look-alike
+    pair, where only the suffix differs by design.
+    """
     c, n = cfg["customers"], cfg["volumes"]["customers"]
     blocklist, seen, rows = c["name_blocklist"], set(), []
 
-    def accept(name: str) -> bool:
-        key = core_name(name)
-        if key in seen or is_blocked(name, blocklist):
-            return False
-        seen.add(key)
-        return True
-
-    group = 0
-    while group < c["lookalike_company_pairs"]:
-        a, b, sector = make_lookalike_pair(rng)
-        if core_name(a) in seen or core_name(b) in seen or is_blocked(a, blocklist) or is_blocked(b, blocklist):
-            continue
-        accept(a), accept(b)
-        group += 1
-        rows += [(a, sector, f"LA-{group}"), (b, sector, f"LA-{group}")]
+    for g in range(c["lookalike_company_pairs"]):
+        kind = LOOKALIKE_KINDS[g % len(LOOKALIKE_KINDS)]
+        while True:
+            a, b, sector = make_lookalike_pair(kind, rng, fake)
+            keys = {core_name(a), core_name(b)}
+            if not (keys & seen) and not is_blocked(a, blocklist) and not is_blocked(b, blocklist):
+                break
+        seen |= keys
+        rows += [(a, sector, f"LA-{g + 1}", kind), (b, sector, f"LA-{g + 1}", kind)]
 
     sectors = list(c["sector_weights"])
     weights = list(c["sector_weights"].values())
     while len(rows) < n:
         sector = str(rng.choice(sectors, p=weights))
         name = make_name(sector, rng, fake)
-        if accept(name):
-            rows.append((name, sector, ""))
+        key = core_name(name)
+        if key not in seen and not is_blocked(name, blocklist):
+            seen.add(key)
+            rows.append((name, sector, "", ""))
 
-    df = pd.DataFrame(rows, columns=["company_name", "sector", "lookalike_group"])
+    df = pd.DataFrame(rows, columns=["company_name", "sector", "lookalike_group", "lookalike_kind"])
     return df.iloc[rng.permutation(n)].reset_index(drop=True)
 
 
@@ -104,13 +104,17 @@ def generate(cfg: dict[str, Any], rng: np.random.Generator, fake: Faker) -> tupl
     trend_start = dt.date(2026, 4, 1)   # start of the "previous 3 months" window (D-002)
     n = v["customers"]
 
-    customers = _unique_names(cfg, rng, fake)
+    # One independent child stream per concern (D-008): changing how names are drawn does
+    # not reshuffle roles, dates or values, and vice versa.
+    names_rng, roles_rng, uptake_rng, lines_rng = rng.spawn(4)
+
+    customers = _unique_names(cfg, names_rng, fake)
     customers.insert(0, "account_id", [f"ACC-{i:04d}" for i in range(1, n + 1)])
     managers = c["account_managers"]
-    customers["account_manager"] = [managers[int(i)] for i in rng.integers(len(managers), size=n)]
+    customers["account_manager"] = [managers[int(i)] for i in roles_rng.integers(len(managers), size=n)]
 
     # Disjoint roles: new, closed, at-risk; everyone else is an ordinary established customer.
-    order = rng.permutation(n)
+    order = roles_rng.permutation(n)
     n_new, n_closed, n_risk = v["new_customers_in_window"], v["closed_customers"], cfg["at_risk_customers"]
     role = np.array(["established"] * n, dtype=object)
     role[order[:n_new]] = "new"
@@ -120,8 +124,8 @@ def generate(cfg: dict[str, Any], rng: np.random.Generator, fake: Faker) -> tupl
     first_start, closed_date = [], []
     for r in role:
         lo, hi = c["new_start_range"] if r == "new" else c["established_start_range"]
-        first_start.append(_random_date(lo, hi, rng))
-        closed_date.append(_random_date(*c["closed_date_range"], rng) if r == "closed" else None)
+        first_start.append(_random_date(lo, hi, roles_rng))
+        closed_date.append(_random_date(*c["closed_date_range"], roles_rng) if r == "closed" else None)
 
     uptake = cfg["business_line_uptake"]
     # Exactly round(rate * n) customers per line, so uptake matches the config rather than
@@ -129,7 +133,7 @@ def generate(cfg: dict[str, Any], rng: np.random.Generator, fake: Faker) -> tupl
     takes = {}
     for bl in BUSINESS_LINES:
         flags = np.zeros(n, dtype=bool)
-        flags[rng.choice(n, size=round(uptake[bl] * n), replace=False)] = True
+        flags[uptake_rng.choice(n, size=round(uptake[bl] * n), replace=False)] = True
         takes[bl] = flags
     for i in range(n):
         if role[i] == "at_risk":          # needs tickets (BL1) and spend to fall (BL2 or BL5)
@@ -140,7 +144,7 @@ def generate(cfg: dict[str, Any], rng: np.random.Generator, fake: Faker) -> tupl
             takes["BL1"][i] = True
 
     lo_b, hi_b = cv["shop_annual_budget_range"]
-    budgets = [int(round(rng.uniform(lo_b, hi_b), -2)) if takes["BL5"][i] else 0 for i in range(n)]
+    budgets = [int(round(uptake_rng.uniform(lo_b, hi_b), -2)) if takes["BL5"][i] else 0 for i in range(n)]
 
     customers["first_contract_start"] = first_start
     customers["status"] = ["closed" if r == "closed" else "active" for r in role]
@@ -161,15 +165,15 @@ def generate(cfg: dict[str, Any], rng: np.random.Generator, fake: Faker) -> tupl
         for k, bl in enumerate(taken):
             start = first_start[i]
             if k > 0:
-                start = _add_months(first_start[i], int(rng.integers(off_lo, off_hi + 1)))
+                start = _add_months(first_start[i], int(lines_rng.integers(off_lo, off_hi + 1)))
                 if start > latest_start:
                     start = first_start[i]
-            term = int(rng.choice(terms, p=term_p))
+            term = int(lines_rng.choice(terms, p=term_p))
             lo_v, hi_v = cv["annual_value_range"][bl]
             lines.append({
                 "account_id": customers.at[i, "account_id"],
                 "business_line": bl,
-                "annual_value": int(round(rng.uniform(lo_v, hi_v), -2)),
+                "annual_value": int(round(lines_rng.uniform(lo_v, hi_v), -2)),
                 "contract_start": start,
                 "term_years": term,
                 "renewal_date": None if end else _next_renewal(start, term, as_of),
@@ -243,8 +247,39 @@ def write_ground_truth(cfg: dict[str, Any], out_dir: Path = GROUND_TRUTH_DIR,
     return customers, lines
 
 
+def seed_spread(cfg: dict[str, Any], seeds: range) -> pd.DataFrame:
+    """Difference from target (percentage points) per business line, for each seed."""
+    rows = {}
+    for seed in seeds:
+        rng, fake = make_rngs(seed)
+        rows[seed] = expected_revenue(cfg, *generate(cfg, rng, fake)).set_index("business_line").diff_pp
+    return pd.DataFrame(rows).T
+
+
 def main() -> None:
+    import sys
     cfg = load_config()
+    if len(sys.argv) == 4 and sys.argv[1] == "--spread":
+        spread = seed_spread(cfg, range(int(sys.argv[2]), int(sys.argv[3]) + 1))
+        print(f"Difference from target (pp), seeds {sys.argv[2]}-{sys.argv[3]}:")
+        print(spread.describe().loc[["mean", "min", "max"]].round(1).to_string())
+        return
+    if len(sys.argv) == 4 and sys.argv[1] == "--calibrate":
+        seeds = range(int(sys.argv[2]), int(sys.argv[3]) + 1)
+        totals = []
+        for seed in seeds:
+            rng, fake = make_rngs(seed)
+            totals.append(expected_revenue(cfg, *generate(cfg, rng, fake)).set_index("business_line")
+                          .expected_revenue_window)
+        mean = pd.DataFrame(totals).mean()
+        target_window_total = 3_200_000 * 1.5   # fact sheet: about £3.2m a year, 18-month window
+        ranges = {**cfg["contract_values"]["annual_value_range"],
+                  "BL5": cfg["contract_values"]["shop_annual_budget_range"]}
+        print(f"Suggested ranges (scale = target / mean expected revenue, seeds {sys.argv[2]}-{sys.argv[3]}):")
+        for bl, (lo, hi) in ranges.items():
+            k = cfg["revenue_share_targets"][bl] * target_window_total / mean[bl]
+            print(f"  {bl}: scale {k:.3f} -> [{round(lo * k, -2):.0f}, {round(hi * k, -2):.0f}]")
+        return
     customers, lines = write_ground_truth(cfg)
     as_of = cfg["as_of_date"]
     renew_90 = lines["renewal_date"].map(lambda d: d is not None and as_of < d <= as_of + dt.timedelta(days=90))

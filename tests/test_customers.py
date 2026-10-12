@@ -1,4 +1,5 @@
 """Canonical customers and contract lines (ground truth)."""
+import copy
 import datetime as dt
 import re
 from pathlib import Path
@@ -9,7 +10,10 @@ import pytest
 from generator.config import load_config
 from generator.customers import (expected_revenue, generate, make_rngs, read_ground_truth_csv,
                                  write_ground_truth)
-from generator.names import VARIANT_KINDS, abbreviate, core_name, name_variant
+from difflib import SequenceMatcher
+
+from generator.names import (LOOKALIKE_KINDS, PLACES, VARIANT_KINDS, abbreviate, core_name,
+                             name_variant)
 
 ROOT = Path(__file__).resolve().parents[1]
 TREND_START = dt.date(2026, 4, 1)
@@ -66,7 +70,10 @@ def test_counts(cfg, data):
     v = cfg["volumes"]
     assert len(customers) == v["customers"]
     assert customers.account_id.is_unique
-    assert customers.company_name.map(core_name).is_unique
+    assert customers.company_name.str.lower().is_unique
+    # core names are unique except within a legal-form look-alike pair (only the suffix differs)
+    non_legal = customers[customers.lookalike_kind != "legal_form"]
+    assert non_legal.company_name.map(core_name).is_unique
     assert customers.is_new_in_window.sum() == v["new_customers_in_window"]
     assert (customers.status == "closed").sum() == v["closed_customers"]
     assert customers.at_risk.sum() == cfg["at_risk_customers"]
@@ -155,14 +162,37 @@ def test_line_dates(cfg, data):
 
 def test_lookalike_pairs(cfg, data):
     customers, _ = data
-    groups = customers[customers.lookalike_group != ""].groupby("lookalike_group")
+    pairs = customers[customers.lookalike_group != ""]
+    groups = pairs.groupby("lookalike_group")
     assert groups.ngroups == cfg["customers"]["lookalike_company_pairs"]
+    assert sorted(pairs.lookalike_kind.unique()) == sorted(LOOKALIKE_KINDS)   # one of each kind
     for _, g in groups:
         assert len(g) == 2
         assert g.account_id.nunique() == 2              # never share an ACC- ID
-        assert g.company_name.map(core_name).nunique() == 2
-        a, b = (core_name(n).split() for n in g.company_name)
-        assert a[0] == b[0]                             # same leading place word: confusable
+        assert g.company_name.nunique() == 2
+        assert g.lookalike_kind.nunique() == 1
+        a, b = g.company_name.tolist()
+        kind = g.lookalike_kind.iloc[0]
+        if kind == "legal_form":
+            assert core_name(a) == core_name(b)
+        else:
+            assert core_name(a) != core_name(b)
+            assert SequenceMatcher(None, core_name(a), core_name(b)).ratio() >= 0.75
+
+
+def test_lookalikes_not_confused_with_other_customers(data):
+    customers, _ = data
+    pair_cores = set(customers.loc[customers.lookalike_group != "", "company_name"].map(core_name))
+    others = customers.loc[customers.lookalike_group == "", "company_name"].map(core_name)
+    assert not set(others) & pair_cores
+
+
+def test_name_patterns(data):
+    customers, _ = data
+    names = customers.company_name
+    assert names.str.contains(" Group Ltd").mean() <= 0.08          # about 5%
+    for name in names[names.str.contains("& Co Ltd", regex=False)]:
+        assert name.split()[0] not in PLACES and " ".join(name.split()[:2]) not in PLACES
 
 
 def test_no_blocklisted_names(cfg, data):
@@ -173,16 +203,33 @@ def test_no_blocklisted_names(cfg, data):
 
 # --- revenue mix ----------------------------------------------------------------------
 
+REVENUE_TOLERANCE_PP = 3.0   # same tolerance for the project seed and held-out seeds (D-007)
+
+
 def test_revenue_mix_near_target_for_project_seed(cfg, data):
     rev = expected_revenue(cfg, *data)
-    assert rev.diff_pp.abs().max() <= 1.5
+    assert rev.diff_pp.abs().max() <= REVENUE_TOLERANCE_PP
 
 
-def test_revenue_mix_near_target_for_other_seeds(cfg):
+def test_revenue_mix_near_target_for_held_out_seeds(cfg):
+    # Seeds 101-110 were not used for calibration (which used seeds 1-50).
     for seed in range(101, 111):
         rng, fake = make_rngs(seed)
         rev = expected_revenue(cfg, *generate(cfg, rng, fake))
-        assert rev.diff_pp.abs().max() <= 3.0, f"seed {seed}"
+        assert rev.diff_pp.abs().max() <= REVENUE_TOLERANCE_PP, f"seed {seed}"
+
+
+def test_substreams_are_independent(cfg):
+    """Changing how names are drawn must not change roles, dates or contract values (D-008)."""
+    other = copy.deepcopy(cfg)
+    other["customers"]["lookalike_company_pairs"] = 3
+    a = generate(cfg, *make_rngs(cfg["seed"]))
+    b = generate(other, *make_rngs(cfg["seed"]))
+    cols = ["account_id", "first_contract_start", "status", "closed_date", "is_new_in_window",
+            "at_risk", "business_lines", "shop_annual_budget"]
+    assert a[0][cols].equals(b[0][cols])
+    assert a[1].equals(b[1])
+    assert not a[0].company_name.equals(b[0].company_name)
 
 
 # --- name variants (QI-01) ------------------------------------------------------------

@@ -4,7 +4,9 @@ A small working prototype of an AI-assisted operational intelligence platform fo
 **fictional** managed IT services provider, Northgate IT Services Ltd.
 
 > **All data in this project is synthetic.** Northgate IT Services Ltd is a fictional company.
-> No real company's name, branding or data is used.
+> No real company's name, branding or data is used. "Northgate IT Services Ltd" is a
+> made-up company name and has no connection to any real company called Northgate,
+> including Northgate plc in Darlington.
 
 Status: in progress. Full documentation will be added in Phase 7.
 
