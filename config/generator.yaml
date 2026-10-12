@@ -1,0 +1,98 @@
+# Synthetic data generator settings for Northgate IT Services Ltd (fictional).
+# Every value here must agree with docs/01_business_processes.md (fact sheet).
+# tests/test_config.py checks the overlapping values automatically.
+
+seed: 20261012
+
+window:
+  start: 2025-04-01
+  end: 2026-09-30
+
+# Data treated as extracted at the end of this date (D-002).
+as_of_date: 2026-09-30
+
+volumes:
+  customers: 120
+  new_customers_in_window: 15     # first contract starts inside the window
+  closed_customers: 5             # CRM status "closed" during the window
+  tickets: 1500
+  open_tickets_at_as_of: 40       # closed_at empty at the as-of moment
+  orders: 3000
+  kb_articles: 44
+  kb_policies: 6                  # SLA and service policies; articles + policies = 50
+  kb_near_duplicate_pairs: 4
+  kb_superseded: 1
+
+# Share of customers taking each business line (BL5 = has ordered from the shop).
+business_line_uptake:
+  BL1: 0.85
+  BL2: 0.50
+  BL3: 0.35
+  BL4: 0.15
+  BL5: 0.80
+
+# Targets for the generated revenue mix (fact sheet §1.2). Not measured figures.
+revenue_share_targets:
+  BL1: 0.35
+  BL2: 0.25
+  BL3: 0.15
+  BL4: 0.10
+  BL5: 0.15
+
+tickets:
+  priority_mix: {P1: 0.04, P2: 0.16, P3: 0.50, P4: 0.30}
+  # SLA targets in elapsed hours (fact sheet §1.3, D-001).
+  sla_hours:
+    P1: {response: 1, resolution: 4}
+    P2: {response: 2, resolution: 8}
+    P3: {response: 4, resolution: 24}
+    P4: {response: 8, resolution: 72}
+  # Target share of closed tickets that breach each SLA.
+  resolution_breach_rate: {P1: 0.10, P2: 0.12, P3: 0.15, P4: 0.08}
+  response_breach_rate: 0.06
+  kb_link_rate: 0.45              # share of tickets where an article was actually used
+
+# Customers given a deliberate "rising tickets, falling spend" pattern
+# (last 3 months vs previous 3 months, D-002). Ground truth for BQ-06.
+at_risk_customers: 10
+
+# Deliberate quality problems (docs/02_as_is_architecture.md §1.7).
+# Rates are shares of records; counts are numbers of instances.
+quality_issues:
+  QI-01_name_variants:            # share of records not using the CRM spelling
+    helpdesk: 0.60
+    shop: 0.50
+    telecoms: 0.90
+    variant_weights: {abbreviation: 0.25, lowercase: 0.20, drop_suffix: 0.25, typo: 0.20, uppercase_truncate: 0.10}
+  QI-02_no_shared_id: true        # structural: each system issues its own IDs
+  QI-03_mixed_dates:              # share of date values not in ISO format
+    crm: 0.30
+    telecoms_bill_month: 0.25
+    helpdesk: 0.05
+    ambiguous_day_month_share: 0.30
+  QI-04_duplicates:
+    crm_duplicate_accounts: 4     # count
+    shop_duplicate_accounts: 8    # count of customers with a second shop account
+    shop_duplicate_order_rate: 0.01
+    telecoms_duplicate_bill_rate: 0.005
+  QI-05_invalid_values:
+    ticket_closed_before_opened_rate: 0.005
+    ticket_invalid_priority_rate: 0.003
+    order_nonpositive_quantity_rate: 0.003
+    crm_contract_value_nonstandard_rate: 0.40   # "£12,000", "12k" etc.
+  QI-06_category_variants_rate: 0.30
+  QI-07_pii_in_ticket_text_rate: 0.25
+  QI-08_missing_values:
+    crm_renewal_date_rate: 0.05
+    shop_delivered_date_rate: 0.03
+    ticket_first_responded_at_rate: 0.04
+    ticket_kb_link_missing_when_used_rate: 0.40
+  QI-09_tickets_linking_superseded_article: 15  # count
+  QI-10_negative_or_excluded_amounts:
+    order_cancelled_rate: 0.04
+    order_refunded_rate: 0.02
+    telecoms_credit_note_rate: 0.01
+  QI-11_crm_telecoms_mismatch:
+    bl2_line_without_telecoms_account: 3        # count
+    telecoms_account_without_bl2_line: 2        # count
+    end_date_mismatch_over_30_days: 5           # count (BQ-13 list a)
