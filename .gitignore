@@ -6,6 +6,7 @@
 # Generated data (reproducible from the seeded generator)
 data/raw/
 data/clean/
+data/staging/
 data/processed/
 data/rejected/
 data/*.duckdb

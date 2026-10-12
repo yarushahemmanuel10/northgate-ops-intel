@@ -29,6 +29,7 @@ FILES_TABLE = """| Path | Committed? | What it is | Produced by |
 | `data/clean/` | No | Clean sources before any quality problems | `python -m generator.run` (step 1) |
 | `data/raw/` | No | Messy sources the platform ingests | `python -m generator.run` (step 2) |
 | `data/ground_truth/` | No | Answer keys: true accounts, known issues, KB links | `python -m generator.run` (step 2) |
+| `data/staging/` | No | Ingested text-only tables with lineage | `python -m pipeline.ingest.run` |
 | `.env` | No | API key (never committed) | You |
 
 Everything under `data/` is reproduced exactly from the seed in `config/generator.yaml`."""

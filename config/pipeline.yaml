@@ -1,0 +1,10 @@
+# Settings for the platform pipeline. The pipeline reads only data/raw/ and
+# knowledge_base/; it never reads the generator's config or answer keys (D-017).
+as_of_moment: "2026-10-01T00:00:00"   # end of 30 Sep 2026 (D-002); used as the ingestion timestamp
+raw_dir: data/raw
+kb_dir: knowledge_base
+staging_dir: data/staging
+shop_api:
+  base_url: "http://127.0.0.1:8765"
+  page_size: 500
+  timeout_seconds: 10
