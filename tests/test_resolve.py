@@ -136,3 +136,23 @@ def test_missing_threshold_is_refused():
     cfg["decision"]["auto_threshold"] = None
     with pytest.raises(ValueError):
         Resolver(cfg, [], [])
+
+
+def test_duplicate_goes_to_best_candidate_not_last_pair_scanned():
+    # D-021 regression: the exact match (ACC-0001) is scanned first, a weaker look-alike that
+    # also qualifies (ACC-0002, score ~94) later; the later pair must not overwrite the better one
+    r = Resolver(load_resolution(), [_acc("ACC-0001", "Barton Engineering Ltd", "2023-04-06"),
+                                     _acc("ACC-0002", "Marton Engineering Ltd", "2026-04-02"),
+                                     _acc("ACC-0003", "Barton Engineering", "2023-04-06")],
+                 [_line("ACC-0001"), _line("ACC-0002"), _line("ACC-0002")])
+    assert r.main_of["ACC-0003"] == "ACC-0001"
+    assert r.crm_findings["ACC-0003"][:3] == ("auto", 100.0, "ACC-0001")
+
+
+def test_duplicate_with_two_close_candidates_goes_to_a_person():
+    r = Resolver(load_resolution(), [_acc("ACC-0001", "Brook Dental", "2019-01-01"),
+                                     _acc("ACC-0002", "Brook Dentals", "2020-01-01"),
+                                     _acc("ACC-0003", "Brook Dental", "2023-01-01")],
+                 [_line("ACC-0001"), _line("ACC-0002")])
+    assert r.main_of["ACC-0003"] == "ACC-0003"
+    assert r.crm_findings["ACC-0003"][0] == "review"

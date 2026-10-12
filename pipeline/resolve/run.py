@@ -59,10 +59,17 @@ class Resolver:
 
     # ---- CRM duplicates ---------------------------------------------------------------
     def _crm_duplicates(self, accounts):
+        """Find CRM records that duplicate another record, and pick each duplicate's main record.
+
+        Every qualifying pair is collected first; each duplicate then goes to its best-scoring
+        candidate main record, using the same margin rule as the other sources (D-021). Pairs
+        are never applied one at a time, so a later, weaker pair cannot overwrite a better one.
+        """
         main_of = {a["Account ID"]: a["Account ID"] for a in accounts}
         self.crm_findings = {}
         normed = {a["Account ID"]: norm(a["Company Name"], self.suffixes) for a in accounts}
         ids = sorted(normed)
+        candidates: dict[str, list[tuple[float, str]]] = {}
         for i, a in enumerate(ids):
             for b in ids[i + 1:]:
                 score = similarity(normed[a], normed[b])
@@ -74,11 +81,10 @@ class Resolver:
                 with_lines = [x for x in (a, b) if self.lines_by_acc.get(x)]
                 fa, fb = legal_form(self.accounts[a]["Company Name"]), legal_form(self.accounts[b]["Company Name"])
                 differ_in_form = fa and fb and fa != fb
-                if score >= self.auto and len(with_lines) <= 1 and not differ_in_form:
+                if len(with_lines) <= 1 and not differ_in_form:
                     main = self._main(a, b)
                     other = b if main == a else a
-                    main_of[other] = main_of.get(main, main)
-                    self.crm_findings[other] = ("auto", score, main, "name match; at most one record has contract lines")
+                    candidates.setdefault(other, []).append((score, main))
                 elif len(with_lines) == 2:
                     # both records carry contracts: two real customers with similar names, not a
                     # duplicate. Recorded, but not worth a person's time.
@@ -87,6 +93,21 @@ class Resolver:
                 else:
                     for x, y in ((a, b), (b, a)):
                         self.crm_findings.setdefault(x, ("review", score, y, f"possible duplicate of {y}: legal forms differ"))
+        for other, cands in sorted(candidates.items()):
+            cands.sort(key=lambda t: (-t[0], t[1]))
+            top = cands[0]
+            close = [c for c in cands if top[0] - c[0] < self.margin]
+            if len(close) == 1:
+                main_of[other] = top[1]
+                self.crm_findings[other] = ("auto", top[0], top[1], "name match; at most one record has contract lines")
+            else:
+                names = " or ".join(c[1] for c in close)
+                self.crm_findings[other] = ("review", top[0], top[1], f"possible duplicate of {names}: too close to call")
+        # follow chains (a duplicate of a duplicate) to the final main record; _main is a strict
+        # order, so every step moves to an earlier record and the loop ends
+        for x in main_of:
+            while main_of[main_of[x]] != main_of[x]:
+                main_of[x] = main_of[main_of[x]]
         return main_of
 
     def _main(self, a, b):
