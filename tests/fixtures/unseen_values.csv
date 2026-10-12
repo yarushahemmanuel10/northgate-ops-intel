@@ -1,0 +1,24 @@
+kind,value,truth,note
+date,2025.04.03,2025-04-03,dots as separators (year first)
+date,3rd April 2025,2025-04-03,ordinal day and full month name
+date,03-04-2025,2025-04-03,UK day-first with hyphens
+date,3/4/25,2025-04-03,UK day-first with two-digit year
+date,2025/04/03,2025-04-03,year first with slashes
+date,"April 3, 2025",2025-04-03,US style with month name
+date,31/02/2025,INVALID,impossible date
+date,13/13/2025,INVALID,impossible month
+date,2025-4-3,2025-04-03,ISO without leading zeros
+date,03 Apr 2025,2025-04-03,day with leading zero and short month
+amount,£12.5k,12500,decimal thousands with pound sign
+amount,12 000,12000,space as thousands separator
+amount,"£12,000.00",12000,pound sign with pence
+amount,GBP 12000,12000,currency code before the number
+amount,twelve thousand,INVALID,words
+amount,"12,5k",INVALID,European decimal comma: ambiguous
+amount,-500,INVALID,negative contract value
+amount,£1.2m,1200000,millions suffix
+priority,p2,P2,lower case
+priority,High,INVALID,word instead of P1-P4
+priority,P 1,P1,space inside the label
+priority,Priority 1,P1,written out
+priority,2,INVALID,bare number: P2 or second-highest is a guess
