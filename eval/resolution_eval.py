@@ -155,13 +155,20 @@ def named_cases(rows: list[dict]) -> list[dict]:
     return out
 
 
-def payoff(validated: Path, resolved: Path) -> dict:
-    """BQ-06 pattern on the pipeline's own crosswalk (queued records treated as unmatched)."""
+def payoff(validated: Path, resolved: Path, review_resolved_by: dict | None = None) -> dict:
+    """BQ-06 pattern on the pipeline's own crosswalk (queued records treated as unmatched).
+
+    review_resolved_by: optional {(source_table, source_key, source_row): account} to simulate a
+    person resolving the review queue correctly."""
     import pandas as pd
     from generator.config import load_config as gen_config
     from generator.patterns import _quarters, flags
     cfg = gen_config()
     cw = pd.DataFrame(_read(resolved / "crosswalk.csv"))
+    if review_resolved_by:
+        for i, r in cw[cw.status == "review"].iterrows():
+            cw.at[i, "resolved_account_id"] = review_resolved_by[(r.source_table, r.source_key, r.source_row)]
+            cw.at[i, "status"] = "auto"
     cw = cw[cw.status == "auto"]
     t = pd.DataFrame(_read(validated / "helpdesk_tickets.csv"))
     t = t.merge(cw[cw.source_table == "helpdesk_tickets"][["source_key", "resolved_account_id"]],
@@ -217,8 +224,12 @@ def main() -> None:
         print(f"  {'PASS' if c['pass'] else 'FAIL'}  {c['case']} [{c['halves']}]: {c['detail']}")
     p = payoff(validated, resolved)
     risk = {"ACC-0004", "ACC-0007", "ACC-0020", "ACC-0027", "ACC-0050", "ACC-0064", "ACC-0082", "ACC-0106", "ACC-0109", "ACC-0115"}
-    print(f"BQ-06 on the pipeline's crosswalk: {len(set(p['flagged']) & risk)} of 10 at-risk found; "
+    print(f"BQ-06 on the pipeline's crosswalk (queued = unmatched): {len(set(p['flagged']) & risk)} of 10 at-risk found; "
           f"healthy flagged {sorted(set(p['flagged']) - risk)}; missed {sorted(risk - set(p['flagged']))}")
+    fix = {(r["source_table"], r["source_key"], r["source_row"]): r["truth"] for r in rows if r["status"] == "review"}
+    p2 = payoff(validated, resolved, fix)
+    print(f"BQ-06 after a person resolves the review queue correctly: {len(set(p2['flagged']) & risk)} of 10 at-risk found; "
+          f"healthy flagged {sorted(set(p2['flagged']) - risk)}; missed {sorted(risk - set(p2['flagged']))}")
 
 
 if __name__ == "__main__":

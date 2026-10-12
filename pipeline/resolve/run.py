@@ -66,7 +66,10 @@ class Resolver:
         for i, a in enumerate(ids):
             for b in ids[i + 1:]:
                 score = similarity(normed[a], normed[b])
-                if score < self.review:
+                # CRM records are typed by account managers, not by many agents, so only
+                # near-identical names are worth a person's time (below the auto threshold,
+                # many unrelated customers share a place word and score in the 70s).
+                if score < self.auto:
                     continue
                 with_lines = [x for x in (a, b) if self.lines_by_acc.get(x)]
                 fa, fb = legal_form(self.accounts[a]["Company Name"]), legal_form(self.accounts[b]["Company Name"])
@@ -76,11 +79,14 @@ class Resolver:
                     other = b if main == a else a
                     main_of[other] = main_of.get(main, main)
                     self.crm_findings[other] = ("auto", score, main, "name match; at most one record has contract lines")
-                else:
-                    reason = ("both have contract lines" if len(with_lines) == 2 else
-                              "legal forms differ" if differ_in_form else "score below auto threshold")
+                elif len(with_lines) == 2:
+                    # both records carry contracts: two real customers with similar names, not a
+                    # duplicate. Recorded, but not worth a person's time.
                     for x, y in ((a, b), (b, a)):
-                        self.crm_findings.setdefault(x, ("review", score, y, f"possible duplicate of {y}: {reason}"))
+                        self.crm_findings.setdefault(x, ("distinct", score, y, f"similar to {y}; both have contract lines"))
+                else:
+                    for x, y in ((a, b), (b, a)):
+                        self.crm_findings.setdefault(x, ("review", score, y, f"possible duplicate of {y}: legal forms differ"))
         return main_of
 
     def _main(self, a, b):

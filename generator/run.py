@@ -31,6 +31,7 @@ FILES_TABLE = """| Path | Committed? | What it is | Produced by |
 | `data/ground_truth/` | No | Answer keys: true accounts, known issues, KB links | `python -m generator.run` (step 2) |
 | `data/staging/` | No | Ingested text-only tables with lineage | `python -m pipeline.ingest.run` |
 | `data/validated/` | No | Typed tables and validation findings | `python -m pipeline.validate.run` |
+| `data/resolved/` | No | Crosswalk of every source record to a CRM account, and the review queue | `python -m pipeline.resolve.run` |
 | `.env` | No | API key (never committed) | You |
 
 Everything under `data/` is reproduced exactly from the seed in `config/generator.yaml`."""
