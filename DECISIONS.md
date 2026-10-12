@@ -136,3 +136,24 @@ One entry per design choice: the choice, the alternatives considered, and the re
 - **Arithmetic is checked, not corrected:** order totals against the sum of quantity × unit price (`ARITH-001`), line totals (`ARITH-002`), bill totals against rental plus calls (`ARITH-003`).
 - **Scores are optimistic:** the answer-key scores (`python -m eval.validation_report`) are measured on mess designed by the same work that wrote the rules, so they overstate how the rules would do on real exports. The more honest check is `tests/fixtures/unseen_values.csv`: 23 messy values the generator never produces, written and committed before the rules. Result: 5 converted correctly, 7 correctly flagged as invalid, 11 valid values flagged rather than converted (unsupported formats such as `3rd April 2025`, `12 000`, `£1.2m`, `P 1`), and 0 wrongly converted. The rules are cautious: they miss conversions rather than make wrong ones.
 - **Known limits:** a KB link that was used but not recorded (QI-08) cannot be detected, because it looks exactly like a ticket that used no article (0 of 276 found, by design); a first response missing on a ticket still open at the as-of date looks like one not yet answered (3 of 61 missed).
+
+## D-019: Entity resolution threshold, chosen on the development half only
+- **Split:** each true customer (ACC- ID) belongs to the dev or held-out half by the parity of an MD5 hash of its ID (`eval/resolution_eval.py`); records are scored in the half of their true customer. The threshold was chosen on dev results only, and recorded here and committed before the held-out half was scored.
+- **Objective:** automatic matches must be at least 99% precise at record level on dev; among thresholds meeting that, take the highest record-level recall (fewest records needing a person).
+- **Dev-half results** (`python -m eval.resolution_eval tune`; 2,668 dev records, 340 dev names; review threshold 70, margin 5 fixed):
+
+| Auto threshold | Auto records | Record precision | Record recall | Records to review | Name precision | Name recall | Names to review |
+|---|---|---|---|---|---|---|---|
+| 70 | 2,539 | 99.80% | 94.98% | 127 | 99.40% | 97.35% | 6 |
+| 75 | 2,539 | 99.80% | 94.98% | 127 | 99.40% | 97.35% | 6 |
+| **80** | **2,598** | **99.96%** | **97.34%** | **68** | **99.70%** | **97.65%** | **6** |
+| 85 | 2,578 | 99.96% | 96.59% | 88 | 99.70% | 97.35% | 7 |
+| 88 | 2,573 | 99.96% | 96.40% | 93 | 99.70% | 96.76% | 9 |
+| 90 | 2,554 | 99.96% | 95.69% | 112 | 99.70% | 96.47% | 10 |
+| 92 | 2,553 | 99.96% | 95.65% | 113 | 99.70% | 96.18% | 11 |
+| 94 | 2,550 | 99.96% | 95.54% | 116 | 99.69% | 95.29% | 14 |
+| 96 | 2,140 | 100.00% | 80.21% | 526 | 100.00% | 77.94% | 74 |
+| 98 | 2,023 | 99.90% | 75.75% | 643 | 99.10% | 64.41% | 118 |
+
+- **Chosen: 80.** The grid first ran from 80 to 98; because 80 sat at the edge, 70 and 75 were added and run on dev before anything else was decided. Below 80, CRM records with similar names start being merged as duplicates, which removes real customers from the master list and lowers recall.
+- **Trade-off:** a small review queue at very high precision. Thresholds from 80 to 94 give the same dev precision (the one dev error survives all of them), so the lowest threshold with that precision is taken, which sends the fewest records to a person.

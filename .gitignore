@@ -8,6 +8,7 @@ data/raw/
 data/clean/
 data/staging/
 data/validated/
+data/resolved/
 data/processed/
 data/rejected/
 data/*.duckdb

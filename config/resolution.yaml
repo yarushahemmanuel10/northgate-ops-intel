@@ -1,0 +1,24 @@
+# Entity resolution (Layer 1, step 2.3). Every source record is matched to one canonical
+# CRM account, sent to review, or left unmatched. Only data/validated/ is read (D-017).
+
+legal_suffixes: [limited, ltd, llp, cio, plc]     # dropped before comparing names
+billing_field_length: 20                          # telecoms names are cut to 20 characters (02 §1.5)
+
+scores:
+  abbreviation: 95        # source equals initials-plus-last-word (or "Word Abbr.") form of a CRM name
+
+decision:
+  # A best candidate scoring at least auto_threshold, ahead of the next candidate by at least
+  # margin, is matched automatically. Between review_threshold and auto_threshold, or too
+  # close to a second candidate, the record goes to the review queue. Below
+  # review_threshold it is unmatched. auto_threshold is chosen on the development half
+  # only (D-019).
+  auto_threshold: 80      # chosen on the dev half only, before any held-out scoring (D-019)
+  review_threshold: 70
+  margin: 5
+
+crm_duplicates:
+  # Two CRM accounts are treated as one customer entered twice only if their names match
+  # at the auto threshold and at most one of them has contract lines. The main record is
+  # the one with contract lines, then the earliest "Customer Since", then the lowest ID.
+  require_at_most_one_with_lines: true
