@@ -6,7 +6,7 @@ from generator.config import load_config
 from generator.customers import read_ground_truth_csv
 from generator.helpdesk import (RAW_COLUMNS, _support_windows, as_of_moment, breach_rates,
                                 build, meets_rise, quarter_counts)
-from generator.ticket_text import CATEGORIES, TOPICS
+from generator.ticket_text import CATEGORIES, SLOTS, TOPICS, allowed_pairs
 
 
 @pytest.fixture(scope="module")
@@ -182,3 +182,39 @@ def test_different_seed_different_output(cfg, tmp_path):
     build(cfg, tmp_path / "r1", tmp_path / "t1")
     build(cfg, tmp_path / "r2", tmp_path / "t2", seed=cfg["seed"] + 1)
     assert (tmp_path / "r1/helpdesk_tickets.csv").read_bytes() != (tmp_path / "r2/helpdesk_tickets.csv").read_bytes()
+
+
+def _matches(template: str, text: str) -> bool:
+    """Does `text` come from `template` with some slot values filled in?
+
+    fill() capitalises the first character, so the first character is compared both ways.
+    """
+    import re
+    pattern = re.escape(template)
+    for slot, options in SLOTS.items():
+        pattern = pattern.replace(re.escape("{" + slot + "}"), "(" + "|".join(map(re.escape, options)) + ")")
+    texts = {text, text[0].lower() + text[1:]}
+    return any(re.fullmatch(pattern, t) for t in texts)
+
+
+def test_every_description_resolution_pair_is_allowed(parsed):
+    for row in parsed.itertuples():
+        pairs = allowed_pairs(row.topic_id)
+        assert any(_matches(d, row.description) and _matches(r, row.resolution_notes) for d, r in pairs), \
+            (row.ticket_id, row.description, row.resolution_notes)
+
+
+def test_wording_changes_do_not_move_topics_or_agents(cfg, monkeypatch, tmp_path):
+    """Topic and agent use their own streams: altering how wording is drawn leaves them unchanged."""
+    import generator.helpdesk as hd
+    from generator.customers import generate, make_rngs
+    customers, lines = generate(cfg, *make_rngs(cfg["seed"]))
+    raw_a, truth_a = hd.generate_tickets(cfg, customers, lines)
+    original = hd.ticket_text
+    def wordier(topic_id, rng):
+        rng.random()                      # one extra draw per ticket on the wording stream
+        return original(topic_id, rng)
+    monkeypatch.setattr(hd, "ticket_text", wordier)
+    raw_b, truth_b = hd.generate_tickets(cfg, customers, lines)
+    assert truth_a.equals(truth_b)
+    assert raw_a.agent.equals(raw_b.agent)

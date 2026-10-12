@@ -91,6 +91,9 @@ def generate_tickets(cfg: dict[str, Any], customers: pd.DataFrame, lines: pd.Dat
     t = cfg["tickets"]
     root = named_stream(cfg["seed"] if seed is None else seed, "helpdesk")
     counts_rng, times_rng, sla_rng, text_rng, open_rng = root.spawn(5)
+    # Topic and agent choices are kept apart from wording, so editing templates never
+    # changes which topic or agent a ticket has (D-008).
+    topic_rng, agent_rng = text_rng.spawn(2)
     windows = _support_windows(cfg, customers, lines)
     at_risk = set(customers.loc[customers.at_risk, "account_id"])
     names = customers.set_index("account_id").company_name
@@ -152,7 +155,7 @@ def generate_tickets(cfg: dict[str, Any], customers: pd.DataFrame, lines: pd.Dat
             res_h = target["resolution"] * sla_rng.uniform(0.15, 0.95)
         res_h = max(res_h, resp_h + 0.25)
         ids, w = topics[p]
-        topic = str(text_rng.choice(ids, p=w))
+        topic = str(topic_rng.choice(ids, p=w))
         desc, res = ticket_text(topic, text_rng)
         rows.append({
             "account_id": acc, "topic_id": topic, "priority": p,
@@ -161,7 +164,7 @@ def generate_tickets(cfg: dict[str, Any], customers: pd.DataFrame, lines: pd.Dat
             "closed_at": opened + dt.timedelta(minutes=round(res_h * 60)),
             "category": TOPICS[topic]["category"],
             "customer_name": names[acc],
-            "agent": agents[int(text_rng.integers(len(agents)))],
+            "agent": agents[int(agent_rng.integers(len(agents)))],
             "description": desc, "resolution_notes": res,
         })
     df = pd.DataFrame(rows).sort_values(["opened_at", "account_id"], kind="stable").reset_index(drop=True)
