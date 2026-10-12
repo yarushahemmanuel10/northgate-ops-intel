@@ -93,6 +93,35 @@ tickets:
   resolution_breach_rate: {P1: 0.10, P2: 0.12, P3: 0.15, P4: 0.08}
   response_breach_rate: 0.06
   kb_link_rate: 0.45              # share of tickets where an article was actually used
+  # Service desk agents (fact sheet §1.4: team lead + 6 agents). Fictional. Their surnames
+  # are reserved: never used in customer names or (later) customer contact names.
+  agents: [Kieran Ashworth, Megan Thirlwell, Tomasz Oduya, Hannah Brierley,
+           Liam Castellano, Sophie Rennard, Dan Pickering]
+  # Share of tickets opened Mon-Fri within working hours (start hour, end hour).
+  working_hours_share: 0.85
+  working_hours: [8, 18]
+  # Ticket rate varies between customers: gamma-distributed with this shape
+  # (higher = more alike). Mean rate is set so the total is about volumes.tickets.
+  customer_rate_shape: 8.0
+  # Category weights. Categories and their topics must match generator/ticket_text.py
+  # and, from step 1.8, the knowledge base topics.
+  category_weights:
+    Email: 0.18
+    Accounts & Access: 0.16
+    Hardware: 0.15
+    Printing: 0.10
+    Network: 0.13
+    Software: 0.14
+    Security: 0.07
+    Backup & Restore: 0.07
+  # At-risk ticket rise (BQ-06): Jul-Sep 2026 tickets at least `ratio` x Apr-Jun 2026 and
+  # at least `min_last_quarter`. At-risk customers are generated to meet it. Values chosen
+  # so few healthy customers meet it by chance (D-011).
+  at_risk_rise:
+    ratio: 2.0
+    min_last_quarter: 8
+    previous_quarter_range: [2, 4]     # Apr-Jun tickets for at-risk customers
+    extra_last_quarter_range: [0, 3]   # added on top of the minimum that meets the rule
 
 # Customers given a deliberate "rising tickets, falling spend" pattern
 # (last 3 months vs previous 3 months, D-002). Ground truth for BQ-06.

@@ -144,6 +144,12 @@ Accountancy Ltd"). They are not a defect but a trap for entity resolution: match
 together would be a false merge. They are kept separate from QI-04's CRM duplicates, which
 are the same company entered twice.
 
+**Named evaluation case for Phase 2.** Two at-risk customers sit in look-alike pairs:
+"Rowley & Pearson Solicitors Ltd" (LA-1, legal-form pair) and "Norton Interior Design Ltd"
+(LA-4, near-identical trade word). If entity resolution wrongly merges the LA-1 pair,
+the at-risk customer's ticket rise is mixed with its healthy look-alike's tickets and its
+at-risk signal can disappear. Phase 2 evaluation reports this case by name.
+
 ## 2. How data flows today
 
 ```mermaid

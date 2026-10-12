@@ -97,6 +97,21 @@ def validate(cfg: dict[str, Any]) -> None:
     for p, r in t["resolution_breach_rate"].items():
         _check_share(f"tickets.resolution_breach_rate.{p}", r)
     _check_share("tickets.kb_link_rate", t["kb_link_rate"])
+    _check_share("tickets.working_hours_share", t["working_hours_share"])
+    h0, h1 = t["working_hours"]
+    if not 0 <= h0 < h1 <= 24:
+        raise ConfigError("tickets.working_hours must be 0 <= start < end <= 24")
+    if t["customer_rate_shape"] <= 0:
+        raise ConfigError("tickets.customer_rate_shape must be positive")
+    if len(set(t["agents"])) != len(t["agents"]) or not t["agents"]:
+        raise ConfigError("tickets.agents must be a non-empty list of unique names")
+    _check_sums_to_one("tickets.category_weights", t["category_weights"])
+    r = t["at_risk_rise"]
+    if r["ratio"] <= 1 or r["min_last_quarter"] < 1:
+        raise ConfigError("tickets.at_risk_rise needs ratio > 1 and min_last_quarter >= 1")
+    lo, hi = r["previous_quarter_range"]
+    if not 0 <= lo <= hi:
+        raise ConfigError("tickets.at_risk_rise.previous_quarter_range must be 0 <= min <= max")
 
     c = cfg["customers"]
     _check_sums_to_one("customers.sector_weights", c["sector_weights"])

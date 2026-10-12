@@ -72,7 +72,11 @@ def _unique_names(cfg: dict[str, Any], rng: np.random.Generator, fake: Faker) ->
     pair, where only the suffix differs by design.
     """
     c, n = cfg["customers"], cfg["volumes"]["customers"]
-    blocklist, seen, rows = c["name_blocklist"], set(), []
+    # Staff surnames are reserved so they never appear in customer names (PII masking
+    # later relies on staff and customer-side names being distinct).
+    staff = c["account_managers"] + cfg["tickets"]["agents"]
+    blocklist = c["name_blocklist"] + [person.split()[-1] for person in staff]
+    seen, rows = set(), []
 
     for g in range(c["lookalike_company_pairs"]):
         kind = LOOKALIKE_KINDS[g % len(LOOKALIKE_KINDS)]
