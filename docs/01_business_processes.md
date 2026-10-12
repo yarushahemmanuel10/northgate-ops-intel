@@ -51,6 +51,9 @@ amount is counted twice (DECISIONS.md D-003).
 BL1, BL3 and BL4 have no transaction source, so their monthly revenue is modelled from
 contract values, not measured. Any report showing it labels it "modelled".
 
+All money amounts in this project (contract values, bills, orders) **exclude VAT**
+(DECISIONS.md D-012).
+
 ### 1.3 Service levels (BL1 support tickets)
 
 | Priority | Meaning | Response target | Resolution target |

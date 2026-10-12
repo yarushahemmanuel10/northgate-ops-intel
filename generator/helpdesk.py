@@ -273,9 +273,9 @@ def main() -> None:
     risk_ids = customers.loc[customers.at_risk, "account_id"]
     print(f"\nAt-risk rise rule: Jul-Sep >= {r['ratio']} x Apr-Jun and Jul-Sep >= {r['min_last_quarter']}")
     print(counts.reindex(risk_ids, fill_value=0).assign(meets=flags.reindex(risk_ids, fill_value=False)).to_string())
-    healthy = customers.loc[~customers.at_risk, "account_id"]
+    healthy = customers.loc[~customers.at_risk & (customers.status == "active"), "account_id"]
     chance = flags.reindex(healthy, fill_value=False)
-    print(f"Customers not at risk that meet the rule by chance: {int(chance.sum())} "
+    print(f"Active customers not at risk that meet the rule by chance: {int(chance.sum())} "
           f"of {int(counts.index.isin(healthy).sum())} with tickets {list(chance[chance].index)}")
 
     closed = customers[customers.status == "closed"].set_index("account_id").closed_date

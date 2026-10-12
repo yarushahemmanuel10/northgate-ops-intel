@@ -164,7 +164,7 @@ def typo(name: str, rng: np.random.Generator) -> str:
     return " ".join(words) + suffix
 
 
-def name_variant(name: str, kind: str, rng: np.random.Generator) -> str:
+def name_variant(name: str, kind: str, rng: np.random.Generator | None) -> str:
     """Return `name` written the way a particular system or person might write it."""
     if kind == "abbreviation":
         out = abbreviate(name)

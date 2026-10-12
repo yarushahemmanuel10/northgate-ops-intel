@@ -95,12 +95,14 @@ the company name, which each team writes differently.
   per account per month).
 - **Key fields — contracts:** `contract_ref` (`TC-00001`), `account_no` (`TEL-50017`),
   `account_name`, `service_type`, `monthly_charge`, `start_date`, `end_date`.
-- **Key fields — bills:** `bill_id` (`BILL-000001`), `account_no`, `bill_month`, `line_rental`,
-  `call_charges`, `total`.
+- **Key fields — bills:** `bill_id` (`BILL-000001`), `account_no`, `bill_month`, `bill_date`
+  (last day of the month), `line_rental`, `call_charges`, `total`. Amounts exclude VAT.
 - **Identifier scheme:** the billing system's own account numbers; names written in the
   billing system's style (often upper case, abbreviated to fit a field length).
 - **Known quality problems:**
-  - Account names in upper case or truncated.
+  - Account names always in the system's own style: upper case, legal suffix dropped,
+    cut to 20 characters. Two different customers can end up with the same name
+    ("ROWLEY & PEARSON SOL" for the LA-1 look-alike pair).
   - Contract end dates that disagree with CRM renewal dates.
   - Bill months in mixed formats (`2025-04`, `Apr-25`, `04/2025`).
   - Occasional duplicate bill rows from a re-run bill export.
@@ -148,7 +150,9 @@ are the same company entered twice.
 "Rowley & Pearson Solicitors Ltd" (LA-1, legal-form pair) and "Norton Interior Design Ltd"
 (LA-4, near-identical trade word). If entity resolution wrongly merges the LA-1 pair,
 the at-risk customer's ticket rise is mixed with its healthy look-alike's tickets and its
-at-risk signal can disappear. Phase 2 evaluation reports this case by name.
+at-risk signal can disappear. Phase 2 evaluation reports this case by name. The pair is
+harder still in telecoms, where the billing system writes both names identically
+("ROWLEY & PEARSON SOL"); only the account number and other evidence can separate them.
 
 ## 2. How data flows today
 

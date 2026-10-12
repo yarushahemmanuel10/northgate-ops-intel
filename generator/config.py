@@ -53,7 +53,7 @@ def _walk_rates(prefix: str, node: Any) -> None:
 
 def validate(cfg: dict[str, Any]) -> None:
     for key in ("seed", "window", "as_of_date", "volumes", "business_line_uptake",
-                "revenue_share_targets", "customers", "contract_values", "tickets",
+                "revenue_share_targets", "customers", "contract_values", "tickets", "telecoms",
                 "at_risk_customers", "quality_issues"):
         if key not in cfg:
             raise ConfigError(f"missing top-level key: {key}")
@@ -142,6 +142,19 @@ def validate(cfg: dict[str, Any]) -> None:
             raise ConfigError(f"contract_values {name}: need 0 < min < max")
     _check_sums_to_one("contract_values.term_years_weights",
                        {str(k): w for k, w in cv["term_years_weights"].items()})
+
+    tel = cfg["telecoms"]
+    _check_share("telecoms.call_charge_share", tel["call_charge_share"])
+    if tel["call_charge_shape"] <= 0:
+        raise ConfigError("telecoms.call_charge_shape must be positive")
+    fall = tel["at_risk_fall"]
+    if not 0 < fall["max_ratio"] < 1:
+        raise ConfigError("telecoms.at_risk_fall.max_ratio must be between 0 and 1")
+    lo, hi = fall["call_reduction_range"]
+    if not 0 < lo <= hi <= 1:
+        raise ConfigError("telecoms.at_risk_fall.call_reduction_range must satisfy 0 < min <= max <= 1")
+    if 1 - fall["max_ratio"] >= tel["call_charge_share"]:
+        raise ConfigError("telecoms: a fall that large cannot come from call charges alone")
 
     n_special = v["new_customers_in_window"] + v["closed_customers"] + cfg["at_risk_customers"]
     if n_special > v["customers"]:

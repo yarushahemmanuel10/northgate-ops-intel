@@ -123,6 +123,20 @@ tickets:
     previous_quarter_range: [2, 4]     # Apr-Jun tickets for at-risk customers
     extra_last_quarter_range: [0, 3]   # added on top of the minimum that meets the rule
 
+telecoms:
+  # All money amounts in the project exclude VAT (D-012). A BL2 contract's annual value is
+  # split into a fixed monthly line rental and variable call charges.
+  call_charge_share: 0.35
+  # Monthly call charges ~ gamma(shape, mean / shape): never negative; higher = steadier.
+  call_charge_shape: 20
+  service_types: [Business broadband, Leased line, Hosted VoIP, Broadband and VoIP]
+  first_account_number: 50001
+  # At-risk spend fall (BQ-06): Jul-Sep 2026 bill total at most `max_ratio` x Apr-Jun 2026.
+  # At-risk BL2 customers' call charges fall by a fraction in this range from July 2026.
+  at_risk_fall:
+    max_ratio: 0.85
+    call_reduction_range: [0.55, 0.75]
+
 # Customers given a deliberate "rising tickets, falling spend" pattern
 # (last 3 months vs previous 3 months, D-002). Ground truth for BQ-06.
 at_risk_customers: 10
@@ -133,7 +147,11 @@ quality_issues:
   QI-01_name_variants:            # share of records not using the CRM spelling
     helpdesk: 0.60
     shop: 0.50
-    telecoms: 0.90
+    # The billing system writes every name in its own style (upper case, no legal suffix,
+    # cut to 20 characters), so 100% of telecoms names already differ from the CRM in the
+    # clean data. This rate is only for extra human variants (typos, abbreviations) that
+    # step 1.9 applies before the system style (D-012).
+    telecoms_extra: 0.15
     variant_weights: {abbreviation: 0.25, lowercase: 0.20, drop_suffix: 0.25, typo: 0.20, uppercase_truncate: 0.10}
   QI-02_no_shared_id: true        # structural: each system issues its own IDs
   QI-03_mixed_dates:              # share of date values not in ISO format

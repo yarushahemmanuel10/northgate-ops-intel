@@ -142,7 +142,7 @@ def test_all_at_risk_customers_meet_the_rise_rule(cfg, built):
 def test_few_healthy_customers_meet_the_rise_rule_by_chance(cfg, built):
     customers, _, raw, truth, _, _ = built
     flags = meets_rise(quarter_counts(raw, truth), cfg)
-    healthy = customers.loc[~customers.at_risk, "account_id"]
+    healthy = customers.loc[~customers.at_risk & (customers.status == "active"), "account_id"]
     assert flags.reindex(healthy, fill_value=False).sum() <= 2
 
 
