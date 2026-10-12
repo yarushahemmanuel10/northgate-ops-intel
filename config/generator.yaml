@@ -137,6 +137,44 @@ telecoms:
     max_ratio: 0.85
     call_reduction_range: [0.55, 0.75]
 
+shop:
+  first_customer_id: 1001
+  # Customers with a second shop account (QI-04 structure; names clean until step 1.9).
+  second_accounts: 8
+  # Healthy customers who move most ordering to their second account from July 2026:
+  # per account this looks like a spend fall, combined it is not (Phase 2 trap, D-013).
+  account_switchers: 1
+  switch_share_after: 1.0         # share of a switcher's orders on the second account from July 2026
+  second_account_share: 0.30      # share of orders on the second account otherwise
+  lines_per_order: [1, 2]
+  promised_days: [2, 7]           # promised delivery, days after the order
+  delivery_days: [1, 9]           # actual delivery, days after the order
+  # Generic products only (D-006). Prices exclude VAT (D-012). weight = how often chosen.
+  catalogue:
+    - {sku: CAB-HDMI-2M, name: HDMI cable 2 m,                 unit_price: 7.50,  max_qty: 5, weight: 8}
+    - {sku: CAB-USBC-1M, name: USB-C charging cable 1 m,       unit_price: 9.00,  max_qty: 5, weight: 8}
+    - {sku: MSE-WL,      name: Wireless mouse,                 unit_price: 14.00, max_qty: 4,  weight: 9}
+    - {sku: KBD-SET,     name: Wireless keyboard and mouse set, unit_price: 32.00, max_qty: 3,  weight: 8}
+    - {sku: HDS-USB,     name: USB headset with microphone,    unit_price: 38.00, max_qty: 3,  weight: 7}
+    - {sku: CAM-HD,      name: HD webcam,                      unit_price: 45.00, max_qty: 2,  weight: 5}
+    - {sku: TNR-BLK,     name: Black toner cartridge,          unit_price: 68.00, max_qty: 3,  weight: 8}
+    - {sku: SSD-1TB,     name: 1 TB internal SSD,              unit_price: 72.00, max_qty: 2,  weight: 4}
+    - {sku: SW-8P,       name: 8-port network switch,          unit_price: 95.00, max_qty: 1,  weight: 3}
+    - {sku: MON-24,      name: 24-inch monitor,                unit_price: 139.00, max_qty: 2, weight: 9}
+    - {sku: AP-WIFI6,    name: Wi-Fi 6 access point,           unit_price: 155.00, max_qty: 2, weight: 3}
+    - {sku: DOC-USBC,    name: USB-C docking station,          unit_price: 165.00, max_qty: 2, weight: 5}
+    - {sku: UPS-1K,      name: 1 kVA UPS,                      unit_price: 185.00, max_qty: 1, weight: 2}
+    - {sku: PRN-MONO,    name: Mono laser printer,             unit_price: 210.00, max_qty: 1, weight: 2}
+    - {sku: MON-27,      name: 27-inch monitor,                unit_price: 215.00, max_qty: 2, weight: 4}
+    - {sku: DSK-SFF,     name: Small form factor desktop PC,   unit_price: 610.00, max_qty: 1, weight: 2}
+    - {sku: LAP-14,      name: 14-inch business laptop,        unit_price: 720.00, max_qty: 1, weight: 3}
+    - {sku: LAP-15,      name: 15-inch business laptop,        unit_price: 790.00, max_qty: 1, weight: 2}
+  # At-risk spend fall (BQ-06), measured on combined spend across all a customer's shop
+  # accounts: Jul-Sep 2026 orders at most `max_ratio` x Apr-Jun 2026.
+  at_risk_fall:
+    max_ratio: 0.4
+    order_reduction_range: [0.75, 0.95]  # share of at-risk orders removed from July 2026
+
 # Customers given a deliberate "rising tickets, falling spend" pattern
 # (last 3 months vs previous 3 months, D-002). Ground truth for BQ-06.
 at_risk_customers: 10

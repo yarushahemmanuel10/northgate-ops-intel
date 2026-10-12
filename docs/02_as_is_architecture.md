@@ -75,7 +75,7 @@ the company name, which each team writes differently.
 - **Key fields:** `order_id` (e.g. `SO-100001`), `customer_id` (numeric shop ID),
   `company_name` (as entered at shop sign-up), `order_date`, `status` (placed,
   dispatched, delivered, cancelled, refunded), `promised_date`, `delivered_date`,
-  `lines` (sku, product, quantity, unit_price), `order_total`.
+  `lines` (sku, product, quantity, unit_price, line_total), `order_total`. Amounts exclude VAT.
 - **Identifier scheme:** the shop issues its own numeric customer IDs. A customer can
   have more than one shop account (for example, separate accounts for two offices).
 - **Access:** paginated REST API with a date filter. The platform must call the API, not
@@ -153,6 +153,14 @@ the at-risk customer's ticket rise is mixed with its healthy look-alike's ticket
 at-risk signal can disappear. Phase 2 evaluation reports this case by name. The pair is
 harder still in telecoms, where the billing system writes both names identically
 ("ROWLEY & PEARSON SOL"); only the account number and other evidence can separate them.
+
+**Named evaluation case for Phase 2: the shop account switch.** One healthy customer
+(ACC-0047 for the project seed) moves all its shop ordering from its first shop account to
+a second one from July 2026. Seen per shop account, the first account's spend collapses
+and looks like an at-risk spend fall; across both accounts, spend actually rises. If
+entity resolution fails to link the two shop accounts to one customer, BQ-06 raises a
+false alarm. Phase 2 evaluation reports this case by name. (One at-risk customer,
+ACC-0004, also has two shop accounts, so its fall is only visible on combined spend.)
 
 ## 2. How data flows today
 

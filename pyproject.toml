@@ -25,3 +25,6 @@ package = false
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+# FastAPI's TestClient warns that Starlette will move to a different HTTP client; this is a
+# library deprecation, not a problem in this project.
+filterwarnings = ["ignore:Using `httpx` with `starlette.testclient` is deprecated"]

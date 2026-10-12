@@ -73,7 +73,8 @@ of scope.
   rules (or a model with an honest evaluation), comparing the last 3 months with the
   previous 3 months (`01` §1.7); the score's inputs can be shown for any customer; and
   customers are ranked for retention effort by score, then annual contract value, with the
-  ranking matching a hand-ordered fixed dataset.
+  ranking matching a hand-ordered fixed dataset. The score combines signals: shop spend
+  alone is too lumpy to flag customers on its own (see DECISIONS.md D-013).
 
 ### BQ-07 — What is our revenue by customer and business line, per month?
 - **Asked by:** directors, finance
