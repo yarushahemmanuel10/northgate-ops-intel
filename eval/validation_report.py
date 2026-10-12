@@ -169,11 +169,14 @@ def unseen_scores(path: Path = ROOT / "tests" / "fixtures" / "unseen_values.csv"
             outcome = "converted correctly"
         else:
             outcome = "WRONGLY converted"
-        rows.append({**r, "result": value, "outcome": outcome})
-    summary = {}
+        group = "handwritten" if r["note"].strip().endswith("handwritten") else "original"
+        rows.append({**r, "result": value, "outcome": outcome, "group": group})
+    summary, by_group = {}, {}
     for row in rows:
         summary[row["outcome"]] = summary.get(row["outcome"], 0) + 1
-    return {"rows": rows, "summary": summary}
+        g = by_group.setdefault(row["group"], {})
+        g[row["outcome"]] = g.get(row["outcome"], 0) + 1
+    return {"rows": rows, "summary": summary, "by_group": by_group}
 
 
 def main() -> None:
@@ -195,9 +198,15 @@ def main() -> None:
         if s["fn"] and s["fn"] <= 5:
             print(f"      FN: {s['fn_examples']}")
     u = unseen_scores()
-    print(f"\nUnseen values fixture ({len(u['rows'])} values, written before the rules): {u['summary']}")
-    for r in u["rows"]:
-        print(f"  {r['kind']:8s} {r['value']!r:22s} truth {r['truth']:11s} -> {str(r['result']):11s} {r['outcome']}")
+    labels = {"original": "original values, written before the rules",
+              "handwritten": "handwritten values, added by hand after the rules"}
+    for group in ("original", "handwritten"):
+        rows = [r for r in u["rows"] if r["group"] == group]
+        if not rows:
+            continue
+        print(f"\nUnseen values fixture - {labels[group]} ({len(rows)} values): {u['by_group'][group]}")
+        for r in rows:
+            print(f"  {r['kind']:8s} {r['value']!r:22s} truth {r['truth']:11s} -> {str(r['result']):11s} {r['outcome']}")
 
 
 if __name__ == "__main__":
