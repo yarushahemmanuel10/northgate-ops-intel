@@ -22,3 +22,12 @@ priority,High,INVALID,word instead of P1-P4
 priority,P 1,P1,space inside the label
 priority,Priority 1,P1,written out
 priority,2,INVALID,bare number: P2 or second-highest is a guess
+date,2025.07.09,2025-07-09,dots as separators (year first) - handwritten
+date,03-04-2026,2026-04-03,UK day-first with hyphens - handwritten
+date,3/4/26,2026-04-03,UK day-first with two-digit year - handwritten
+amount,£14.5k,14500,decimal thousands with pound sign - handwritten
+amount,19 000,19000,space as thousands separator - handwritten
+priority,p4,P4,lower case - handwritten
+priority,High,INVALID,word instead of P1-P4 - handwritten
+priority,P 2,P2,space inside the label - handwritten
+priority,Priority 3,P3,written out - handwritten
