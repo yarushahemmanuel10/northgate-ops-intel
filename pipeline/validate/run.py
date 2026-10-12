@@ -22,9 +22,25 @@ from pipeline.validate.parse import parse_date, parse_money, parse_number, parse
 FINDING_COLUMNS = ["rule_id", "table", "record_key", "source_row", "field", "original", "action", "value", "detail"]
 
 
-def load_rules(path: Path = ROOT / "config" / "validation.yaml") -> dict:
+def load_rules(path: Path = ROOT / "config" / "validation.yaml",
+               vocabulary_path: Path = ROOT / "config" / "vocabulary.yaml") -> dict:
     with open(path, encoding="utf-8") as f:
-        return yaml.safe_load(f)
+        rules = yaml.safe_load(f)
+    with open(vocabulary_path, encoding="utf-8") as f:
+        rules["vocabulary"] = yaml.safe_load(f)
+    return rules
+
+
+def category_lookup(vocabulary: dict) -> dict[str, str]:
+    """Case-insensitive lookup from any accepted spelling to its canonical ticket category."""
+    voc = vocabulary["ticket_category"]
+    canonical = voc["canonical"]
+    bad = sorted({v for v in voc["variants"].values() if v not in canonical})
+    if bad or len(set(canonical)) != len(canonical):
+        raise ValueError(f"vocabulary.yaml: variants must map to a canonical category (bad: {bad})")
+    lookup = {c.strip().casefold(): c for c in canonical}
+    lookup.update({k.strip().casefold(): v for k, v in voc["variants"].items()})
+    return lookup
 
 
 def _read(path: Path) -> list[dict]:
@@ -50,6 +66,7 @@ class Validator:
         lo, hi = rules["dates"]["plausible_range"]
         self.plausible = (lo, hi)
         self.findings: list[dict] = []
+        self.categories = category_lookup(rules["vocabulary"])
 
     def note(self, rule, table, row, key, field, original, action, value, detail):
         self.findings.append({"rule_id": rule, "table": table, "record_key": row[key],
@@ -105,6 +122,15 @@ class Validator:
                 rule = "PRIORITY-001" if action in ("normalised", "converted") else "PRIORITY-002"
                 self.note(rule, "helpdesk_tickets", r, "ticket_id", "priority", r["priority"], action, value, detail)
             r["priority__value"] = value or ""
+            raw_cat = r["category"]
+            cat = self.categories.get(raw_cat.strip().casefold())
+            if cat is None:
+                self.note("CATEGORY-001", "helpdesk_tickets", r, "ticket_id", "category", raw_cat, "flagged", None,
+                          "category not in the controlled vocabulary (config/vocabulary.yaml)")
+            elif cat != raw_cat:
+                self.note("CATEGORY-002", "helpdesk_tickets", r, "ticket_id", "category", raw_cat, "mapped", cat,
+                          "variant mapped to its canonical category")
+            r["category__value"] = cat or ""
             if opened and closed and closed < opened:
                 self.note("TIME-001", "helpdesk_tickets", r, "ticket_id", "closed_at", r["closed_at"], "flagged",
                           None, "closed before opened")

@@ -1,0 +1,210 @@
+# Data dictionary (step 2.4, D-022). Fictional company, synthetic data.
+#
+# One entry per column of every table in data/validated/ and data/resolved/ (tested both
+# ways in tests/test_semantic.py). For each column:
+#   description    what the value means
+#   type           text | date | timestamp | decimal | integer | boolean | code
+#   personal_data  true if the column can hold information about an identifiable person
+#                  (Phase 6 masking and roles build on this); business names are false
+#   bqs            the business questions (docs/03) that use the column; a column no
+#                  question uses has bqs: [] and says why in unused_reason
+# Raw text columns of typed fields are kept unchanged for audit (BQ-14); the matching
+# "__value" column holds the typed value that the questions use (D-018).
+
+lineage_columns:
+  _source_system: {description: "System the row came from", type: code, personal_data: false, bqs: [BQ-14]}
+  _source_file: {description: "File or endpoint the row was read from", type: text, personal_data: false, bqs: [BQ-14]}
+  _source_row: {description: "Row number in the source file (or position in the API response)", type: integer, personal_data: false, bqs: [BQ-14]}
+  _ingested_at: {description: "When ingestion read the row (fixed per run for reproducibility)", type: timestamp, personal_data: false, bqs: [BQ-14]}
+  _source_page: {description: "Shop API page the row came from", type: integer, personal_data: false, bqs: [BQ-14]}
+
+tables:
+  crm_accounts:
+    layer: validated
+    grain: one row per CRM account record (duplicates included; see the crosswalk)
+    lineage: [_source_system, _source_file, _source_row, _ingested_at]
+    columns:
+      Account ID: {description: "Canonical customer ID (ACC- + 4 digits); the master key every source is resolved to", type: code, personal_data: false, bqs: [BQ-04, BQ-05, BQ-06, BQ-07, BQ-08, BQ-09, BQ-13, BQ-16]}
+      Company Name: {description: "Customer's business name as typed in the CRM", type: text, personal_data: false, personal_data_note: "business name", bqs: [BQ-04, BQ-06, BQ-08]}
+      Sector: {description: "Customer's industry sector", type: code, personal_data: false, bqs: [], unused_reason: "descriptive only; no business question groups by sector"}
+      Account Manager: {description: "Northgate account manager who owns the customer", type: text, personal_data: true, personal_data_note: "staff member's name", bqs: [BQ-05, BQ-06]}
+      Customer Since: {description: "Start of the customer relationship, original text", type: text, personal_data: false, bqs: [BQ-14]}
+      Customer Since__value: {description: "Customer Since as a date; tie-break for the CRM main-record rule (D-020)", type: date, personal_data: false, bqs: [BQ-08, BQ-14]}
+      Status: {description: "'active' or 'closed' at the as-of date", type: code, personal_data: false, bqs: [BQ-04, BQ-06, BQ-09]}
+      Closed Date: {description: "Date a closed customer left, original text", type: text, personal_data: false, bqs: [BQ-14]}
+      Closed Date__value: {description: "Closed Date as a date; empty for active customers", type: date, personal_data: false, bqs: [BQ-06, BQ-09]}
+
+  crm_contract_lines:
+    layer: validated
+    grain: one row per business line sold to a customer
+    lineage: [_source_system, _source_file, _source_row, _ingested_at]
+    columns:
+      Line ID: {description: "Contract line ID (CL- + 4 digits)", type: code, personal_data: false, bqs: [BQ-05]}
+      Account ID: {description: "CRM account the line belongs to", type: code, personal_data: false, bqs: [BQ-05, BQ-07, BQ-09, BQ-13, BQ-16]}
+      Business Line: {description: "BL1-BL5 (fact sheet §1.2)", type: code, personal_data: false, bqs: [BQ-05, BQ-07, BQ-09, BQ-13]}
+      Annual Value (GBP): {description: "Annual contract value excluding VAT, original text", type: text, personal_data: false, bqs: [BQ-14]}
+      Annual Value (GBP)__value: {description: "Annual value as a number, GBP excluding VAT (D-012)", type: decimal, personal_data: false, bqs: [BQ-05, BQ-06, BQ-07]}
+      Contract Start: {description: "Contract line start, original text", type: text, personal_data: false, bqs: [BQ-14]}
+      Contract Start__value: {description: "Contract line start as a date", type: date, personal_data: false, bqs: [BQ-07, BQ-13, BQ-16]}
+      Term (Years): {description: "Contract term in years, as exported", type: text, personal_data: false, bqs: [BQ-05]}
+      Renewal Date: {description: "Next renewal date, original text", type: text, personal_data: false, bqs: [BQ-14]}
+      Renewal Date__value: {description: "Renewal date as a date; empty if missing (MISSING-003)", type: date, personal_data: false, bqs: [BQ-05, BQ-13]}
+      End Date: {description: "Date the line ended, original text", type: text, personal_data: false, bqs: [BQ-14]}
+      End Date__value: {description: "End date as a date; empty for lines still running", type: date, personal_data: false, bqs: [BQ-07, BQ-13]}
+
+  helpdesk_tickets:
+    layer: validated
+    grain: one row per support ticket
+    lineage: [_source_system, _source_file, _source_row, _ingested_at]
+    columns:
+      ticket_id: {description: "Ticket ID (INC- + 5 digits)", type: code, personal_data: false, bqs: [BQ-01, BQ-02, BQ-03, BQ-04, BQ-12]}
+      opened_at: {description: "When the ticket was opened, original text", type: text, personal_data: false, bqs: [BQ-14]}
+      opened_at__value: {description: "Opened time as a timestamp", type: timestamp, personal_data: false, bqs: [BQ-01, BQ-02, BQ-03, BQ-04, BQ-06, BQ-16]}
+      first_responded_at: {description: "First response to the customer, original text", type: text, personal_data: false, bqs: [BQ-14]}
+      first_responded_at__value: {description: "First response as a timestamp; empty if missing or not yet responded", type: timestamp, personal_data: false, bqs: [BQ-01]}
+      closed_at: {description: "When the ticket was closed, original text; empty if open", type: text, personal_data: false, bqs: [BQ-14]}
+      closed_at__value: {description: "Closed time as a timestamp; empty for open tickets", type: timestamp, personal_data: false, bqs: [BQ-01, BQ-02, BQ-03]}
+      priority: {description: "Priority as exported, original text", type: text, personal_data: false, bqs: [BQ-14]}
+      priority__value: {description: "P1-P4, or empty when the exported value is not a valid priority (PRIORITY-002)", type: code, personal_data: false, bqs: [BQ-01, BQ-02, BQ-03, BQ-16]}
+      category: {description: "Category as typed by the agent, original text", type: text, personal_data: false, bqs: [BQ-14]}
+      category__value: {description: "Canonical category from config/vocabulary.yaml; empty if not in the vocabulary (CATEGORY-001)", type: code, personal_data: false, bqs: [BQ-03]}
+      customer_name: {description: "Customer's business name as typed by the agent; resolved through the crosswalk", type: text, personal_data: false, personal_data_note: "business name", bqs: [BQ-04, BQ-06, BQ-08]}
+      agent: {description: "Service desk agent who handled the ticket", type: text, personal_data: true, personal_data_note: "staff member's name", bqs: [], unused_reason: "no business question is asked per agent; kept for masking and roles in Phase 6"}
+      description: {description: "Problem as described when the ticket was raised (free text)", type: text, personal_data: true, personal_data_note: "free text; can hold customer contacts' names, emails and phone numbers (QI-07)", bqs: [BQ-11]}
+      resolution_notes: {description: "How the ticket was resolved (free text)", type: text, personal_data: true, personal_data_note: "free text written by staff; can name people", bqs: [BQ-11]}
+      kb_article_id: {description: "Knowledge base article the agent linked; empty if none was recorded", type: code, personal_data: false, bqs: [BQ-12]}
+      response_sla_measurable: {description: "true when the ticket is closed and has a valid first response, so response SLA can be measured", type: boolean, personal_data: false, bqs: [BQ-01]}
+
+  kb_documents:
+    layer: validated
+    grain: one row per knowledge base document (article or policy)
+    lineage: [_source_system, _source_file, _source_row, _ingested_at]
+    columns:
+      id: {description: "Document ID (KB- + 4 digits)", type: code, personal_data: false, bqs: [BQ-11, BQ-12]}
+      title: {description: "Document title", type: text, personal_data: false, bqs: [BQ-11, BQ-12]}
+      type: {description: "'article' or 'policy'", type: code, personal_data: false, bqs: [BQ-11]}
+      topic_ids: {description: "Topics the document covers", type: text, personal_data: false, bqs: [BQ-11]}
+      author: {description: "Team that wrote the document", type: text, personal_data: false, personal_data_note: "a team name, not a person", bqs: [], unused_reason: "no business question uses authorship"}
+      created: {description: "Date the document was created, as written in the front matter", type: text, personal_data: false, bqs: [BQ-12]}
+      updated: {description: "Date the document was last updated, as written in the front matter", type: text, personal_data: false, bqs: [BQ-12]}
+      status: {description: "'current' or 'superseded'", type: code, personal_data: false, bqs: [BQ-11, BQ-12]}
+      superseded_by: {description: "Document that replaces this one, if superseded", type: code, personal_data: false, bqs: [BQ-11, BQ-12]}
+      superseded_on: {description: "Date it was superseded", type: text, personal_data: false, bqs: [BQ-12]}
+      synthetic: {description: "Synthetic-data marker from the front matter (D-010)", type: boolean, personal_data: false, bqs: [], unused_reason: "labelling only"}
+      body: {description: "Document text (Markdown)", type: text, personal_data: true, personal_data_note: "free text; none seen in the synthetic articles, but staff could write names", bqs: [BQ-11]}
+
+  shop_orders:
+    layer: validated
+    grain: one row per shop order (including cancelled, refunded and duplicated rows)
+    lineage: [_source_page, _source_system, _source_file, _source_row, _ingested_at]
+    columns:
+      order_id: {description: "Order ID (SO- + 6 digits)", type: code, personal_data: false, bqs: [BQ-07, BQ-10]}
+      customer_id: {description: "Shop customer number (one customer may have several); resolved through the crosswalk", type: code, personal_data: false, bqs: [BQ-06, BQ-07, BQ-08]}
+      company_name: {description: "Business name given at shop sign-up", type: text, personal_data: false, personal_data_note: "business name", bqs: [BQ-06, BQ-08]}
+      order_date: {description: "Order date, original text", type: text, personal_data: false, bqs: [BQ-14]}
+      order_date__value: {description: "Order date as a date; assigns BL5 revenue to a month", type: date, personal_data: false, bqs: [BQ-06, BQ-07, BQ-10]}
+      status: {description: "placed, dispatched, delivered, cancelled or refunded", type: code, personal_data: false, bqs: [BQ-07, BQ-10]}
+      promised_date: {description: "Promised delivery date, original text", type: text, personal_data: false, bqs: [BQ-14]}
+      promised_date__value: {description: "Promised delivery date as a date", type: date, personal_data: false, bqs: [BQ-10]}
+      delivered_date: {description: "Actual delivery date, original text; empty if not delivered or missing", type: text, personal_data: false, bqs: [BQ-14]}
+      delivered_date__value: {description: "Delivery date as a date", type: date, personal_data: false, bqs: [BQ-10]}
+      order_total: {description: "Order total excluding VAT, original text", type: text, personal_data: false, bqs: [BQ-14]}
+      order_total__value: {description: "Order total as a number, GBP excluding VAT", type: decimal, personal_data: false, bqs: [BQ-06, BQ-07]}
+      line_count: {description: "Number of order lines reported by the shop", type: integer, personal_data: false, bqs: [BQ-14]}
+      revenue_treatment: {description: "include, or exclude for cancelled and refunded orders (D-018)", type: code, personal_data: false, bqs: [BQ-06, BQ-07]}
+
+  shop_order_lines:
+    layer: validated
+    grain: one row per line of a shop order
+    lineage: [_source_page, _source_system, _source_file, _source_row, _ingested_at]
+    columns:
+      order_id: {description: "Order the line belongs to", type: code, personal_data: false, bqs: [BQ-07, BQ-14]}
+      line_no: {description: "Line number within the order", type: integer, personal_data: false, bqs: [BQ-14]}
+      sku: {description: "Product code", type: code, personal_data: false, bqs: [], unused_reason: "product-level questions are out of scope (docs/03 §2)"}
+      product: {description: "Product name", type: text, personal_data: false, bqs: [], unused_reason: "product-level questions are out of scope (docs/03 §2)"}
+      quantity: {description: "Quantity, original text", type: text, personal_data: false, bqs: [BQ-14]}
+      quantity__value: {description: "Quantity as a number; checked by QTY-001 and ARITH-002", type: integer, personal_data: false, bqs: [BQ-14]}
+      unit_price: {description: "Unit price excluding VAT, original text", type: text, personal_data: false, bqs: [BQ-14]}
+      unit_price__value: {description: "Unit price as a number", type: decimal, personal_data: false, bqs: [BQ-14]}
+      line_total: {description: "Line total, original text", type: text, personal_data: false, bqs: [BQ-14]}
+      line_total__value: {description: "Line total as a number; checked by ARITH-002", type: decimal, personal_data: false, bqs: [BQ-14]}
+
+  telecoms_contracts:
+    layer: validated
+    grain: one row per telecoms contract (one per telecoms account)
+    lineage: [_source_system, _source_file, _source_row, _ingested_at]
+    columns:
+      contract_ref: {description: "Telecoms contract ID (TC- + 5 digits)", type: code, personal_data: false, bqs: [BQ-13]}
+      account_no: {description: "Telecoms account number (TEL- + 5 digits); resolved through the crosswalk", type: code, personal_data: false, bqs: [BQ-07, BQ-13]}
+      account_name: {description: "Account name in the billing system (upper case, often truncated)", type: text, personal_data: false, personal_data_note: "business name", bqs: [BQ-07, BQ-13]}
+      service_type: {description: "Broadband, leased line, hosted VoIP or a combination", type: code, personal_data: false, bqs: [BQ-08]}
+      monthly_charge: {description: "Contracted monthly charge, as exported", type: text, personal_data: false, bqs: [], unused_reason: "BL2 revenue comes from bills only (D-003); not typed"}
+      start_date: {description: "Contract start, original text", type: text, personal_data: false, bqs: [BQ-14]}
+      start_date__value: {description: "Contract start as a date; also evidence for entity resolution (D-020)", type: date, personal_data: false, bqs: [BQ-13, BQ-14]}
+      end_date: {description: "Contract end, original text", type: text, personal_data: false, bqs: [BQ-14]}
+      end_date__value: {description: "Contract end as a date; compared with the CRM BL2 renewal date", type: date, personal_data: false, bqs: [BQ-13]}
+
+  telecoms_bills:
+    layer: validated
+    grain: one row per exported bill row (re-run duplicates and credit notes included)
+    lineage: [_source_system, _source_file, _source_row, _ingested_at]
+    columns:
+      bill_id: {description: "Bill ID (BILL- + 6 digits), or CN- for a credit note", type: code, personal_data: false, bqs: [BQ-07]}
+      account_no: {description: "Telecoms account billed", type: code, personal_data: false, bqs: [BQ-06, BQ-07]}
+      bill_month: {description: "Month billed, original text", type: text, personal_data: false, bqs: [BQ-14]}
+      bill_month__value: {description: "Month billed as a date (first of the month); assigns BL2 revenue to a month", type: date, personal_data: false, bqs: [BQ-06, BQ-07]}
+      bill_date: {description: "Date the bill was issued, original text", type: text, personal_data: false, bqs: [BQ-14]}
+      bill_date__value: {description: "Bill date as a date", type: date, personal_data: false, bqs: [BQ-14]}
+      line_rental: {description: "Line rental, original text", type: text, personal_data: false, bqs: [BQ-14]}
+      line_rental__value: {description: "Line rental as a number; checked by ARITH-003", type: decimal, personal_data: false, bqs: [BQ-14]}
+      call_charges: {description: "Call charges, original text", type: text, personal_data: false, bqs: [BQ-14]}
+      call_charges__value: {description: "Call charges as a number; checked by ARITH-003", type: decimal, personal_data: false, bqs: [BQ-14]}
+      total: {description: "Bill total excluding VAT, original text", type: text, personal_data: false, bqs: [BQ-14]}
+      total__value: {description: "Bill total as a number (negative for credit notes)", type: decimal, personal_data: false, bqs: [BQ-06, BQ-07]}
+      revenue_treatment: {description: "include, or negative for credit notes (D-018)", type: code, personal_data: false, bqs: [BQ-07]}
+
+  validation_findings:
+    layer: validated
+    grain: one row per validation finding
+    lineage: []
+    columns:
+      rule_id: {description: "Validation rule that raised the finding (D-018, D-022)", type: code, personal_data: false, bqs: [BQ-14]}
+      table: {description: "Table of the record", type: code, personal_data: false, bqs: [BQ-14]}
+      record_key: {description: "Key of the record", type: code, personal_data: false, bqs: [BQ-14]}
+      source_row: {description: "Source row of the record", type: integer, personal_data: false, bqs: [BQ-14]}
+      field: {description: "Field the finding is about", type: code, personal_data: false, bqs: [BQ-14]}
+      original: {description: "Original text of the field", type: text, personal_data: false, personal_data_note: "only dates, money, priority, category and similar typed fields are checked; no free-text field", bqs: [BQ-14]}
+      action: {description: "converted, converted_by_convention, normalised, mapped or flagged", type: code, personal_data: false, bqs: [BQ-14]}
+      value: {description: "Typed value written, empty when flagged", type: text, personal_data: false, bqs: [BQ-14]}
+      detail: {description: "Plain-English reason", type: text, personal_data: false, bqs: [BQ-14]}
+
+  crosswalk:
+    layer: resolved
+    grain: one row per source record (CRM, helpdesk, shop, telecoms)
+    lineage: []
+    columns:
+      source_system: {description: "System of the record", type: code, personal_data: false, bqs: [BQ-14]}
+      source_table: {description: "Validated table of the record", type: code, personal_data: false, bqs: [BQ-14]}
+      source_key: {description: "Key of the record in its table", type: code, personal_data: false, bqs: [BQ-14]}
+      source_row: {description: "Source row of the record", type: integer, personal_data: false, bqs: [BQ-14]}
+      raw_name: {description: "Customer name as written in the source", type: text, personal_data: false, personal_data_note: "business name", bqs: [BQ-14]}
+      resolved_account_id: {description: "Canonical ACC- ID; empty when queued or unmatched", type: code, personal_data: false, bqs: [BQ-04, BQ-06, BQ-07, BQ-08, BQ-09, BQ-13, BQ-14]}
+      method: {description: "exact, fuzzy, evidence or unmatched (D-020)", type: code, personal_data: false, bqs: [BQ-14]}
+      score: {description: "Name similarity score, 0-100", type: decimal, personal_data: false, bqs: [BQ-14]}
+      status: {description: "auto, review or unmatched", type: code, personal_data: false, bqs: [BQ-04, BQ-14]}
+      detail: {description: "Evidence or reason for the decision", type: text, personal_data: false, bqs: [BQ-14]}
+
+  review_queue:
+    layer: resolved
+    grain: one row per name or account needing a person
+    lineage: []
+    columns:
+      source_system: {description: "System of the queued name or account", type: code, personal_data: false, bqs: [BQ-14]}
+      unit: {description: "The spelling, shop account or telecoms account to decide", type: text, personal_data: false, bqs: [BQ-14]}
+      raw_name: {description: "Name as written", type: text, personal_data: false, personal_data_note: "business name", bqs: [BQ-14]}
+      records: {description: "Number of records the decision covers", type: integer, personal_data: false, bqs: [BQ-14]}
+      candidate_1: {description: "Best candidate ACC- ID", type: code, personal_data: false, bqs: [BQ-14]}
+      score_1: {description: "Its score", type: decimal, personal_data: false, bqs: [BQ-14]}
+      candidate_2: {description: "Second candidate ACC- ID", type: code, personal_data: false, bqs: [BQ-14]}
+      score_2: {description: "Its score", type: decimal, personal_data: false, bqs: [BQ-14]}
+      reason: {description: "Why a person is needed", type: text, personal_data: false, bqs: [BQ-14]}

@@ -118,6 +118,16 @@ def answer_key_scores(validated: Path, truth: Path) -> dict:
     res["QI-05 quantity (QTY-001)"] = score(kq, {(k[0].replace("shop_order_lines", "shop_orders"), k[1])
                                                  for k in fset("QTY-001")})
     res["QI-05 quantity (ARITH-001 order total)"] = score(kq, {(k[0], k[1]) for k in fset("ARITH-001")})
+    # QI-06 ticket categories: detected (mapped or flagged) and mapped to the right category
+    k6 = kset("QI-06", {"category"})
+    f6 = fset("CATEGORY-001", "CATEGORY-002")
+    s = score(set(k6), set(f6), {k: f"{k} {f6[k]['original']!r} -> {f6[k]['value']!r}" for k in f6})
+    right = sum(1 for k in set(k6) & set(f6) if f6[k]["value"] == str(_decode(k6[k]["original_json"])))
+    s["mapped_exactly_right"] = right
+    s["mapping_recall"] = right / len(k6) if k6 else None
+    s["mapping_precision"] = right / len(f6) if f6 else None
+    s["unmapped_flagged"] = sum(1 for f in f6.values() if f["rule_id"] == "CATEGORY-001")
+    res["QI-06 ticket categories"] = s
     # QI-08
     res["QI-08 renewal dates"] = score(set(kset("QI-08", {"renewal_date"})), set(fset("MISSING-003")))
     res["QI-08 delivered dates"] = score(set(kset("QI-08", {"delivered_date"})), set(fset("MISSING-002")))

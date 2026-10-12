@@ -61,6 +61,7 @@ uv run python -m eval.resolution_eval report   # held-out scores, named cases, r
 |---|---|---|---|
 | `config/generator.yaml` | Yes | Every generator setting (seed, volumes, rates) | Hand-written |
 | `docs/`, `DECISIONS.md`, `README.md` | Yes | Business understanding, decisions, this file | Hand-written (this table by `generator.run`) |
+| `config/vocabulary.yaml`, `semantic/data_dictionary.yaml`, `semantic/metrics.yaml` | Yes | Ticket-category vocabulary, data dictionary with personal-data flags, metric definitions | Hand-written (D-022) |
 | `generator/`, `shop_api/`, `tests/` | Yes | Code and tests | Hand-written |
 | `knowledge_base/*.md`, `knowledge_base/_meta.yaml` | Yes | 50 KB documents and their ground truth | Hand-written (D-014) |
 | `pyproject.toml`, `uv.lock`, `.python-version` | Yes | Exact dependency versions (D-005) | `uv` |

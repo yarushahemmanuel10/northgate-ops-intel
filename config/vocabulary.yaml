@@ -1,0 +1,44 @@
+# Controlled vocabulary (step 2.4, D-022). Read by pipeline/validate/run.py.
+#
+# Built the way an analyst would: list the distinct values in data/validated/ (34 ticket
+# categories on the project seed, with counts), take the most-used, clearly standard values
+# as the canonical list, and map each other value by hand. Never built from the answer key.
+# Matching ignores case and surrounding spaces. A value that matches neither a canonical
+# name nor a variant keeps its text, gets an empty category__value and a CATEGORY-001 finding.
+
+ticket_category:
+  canonical:                 # the eight values each used on 86-190 tickets
+    - Accounts & Access
+    - Backup & Restore
+    - Email
+    - Hardware
+    - Network
+    - Printing
+    - Security
+    - Software
+  variants:                  # value seen in the data -> canonical category
+    Account/Access: Accounts & Access
+    Accounts: Accounts & Access
+    Access: Accounts & Access
+    Passwords: Accounts & Access
+    Backup: Backup & Restore
+    Backups: Backup & Restore
+    Restore: Backup & Restore
+    E-mail: Email
+    Mail: Email
+    Outlook: Email
+    Hardware fault: Hardware
+    H/W: Hardware
+    Wi-Fi/Network: Network
+    Networking: Network
+    Printer: Printing
+    Printers: Printing
+    Cyber: Security
+    Virus: Security
+    Apps: Software
+    Applications: Software
+  judgement:                 # mappings that are a choice, not a spelling fix, and why
+    Passwords: "password resets are access requests; no separate canonical category exists"
+    Outlook: "Outlook is the mail client and these tickets are about mail; Software was the alternative"
+    Virus: "malware is a security incident; Software was the alternative"
+    Cyber: "shorthand for cyber security"

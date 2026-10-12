@@ -1,0 +1,149 @@
+# Metric definitions (step 2.4, D-022). Fictional company, synthetic data.
+#
+# Written definitions of the terms the business questions use, so every layer (and later
+# the assistant) uses one meaning. No new numbers: each number lists where it comes from,
+#   - {source: docs/01_business_processes.md, section: "1.3", label: P1, value: "1 hour"}
+#     a row of that fact-sheet section must contain both the label and the value, or
+#   - {source: config/<file>.yaml, key: dotted.path, value: ...}
+#     the config value at that key must equal the value.
+# tests/test_semantic.py checks every number, every input field against the data
+# dictionary, and that every BQ-01 to BQ-16 is used by at least one field or metric.
+
+metrics:
+  as_of_moment:
+    name: As-of moment
+    definition: >-
+      The moment the data is treated as extracted: the end of 30 September 2026, written
+      2026-10-01 00:00. Every time-relative calculation uses it, never the real date (D-002).
+    numbers:
+      - {source: config/pipeline.yaml, key: as_of_moment, value: "2026-10-01T00:00:00"}
+    inputs: []
+    bqs: [BQ-02, BQ-05, BQ-06, BQ-16]
+
+  comparison_quarters:
+    name: Last 3 months and previous 3 months
+    definition: >-
+      Last 3 months is July to September 2026; previous 3 months is April to June 2026
+      (calendar months before the as-of date). Used for every trend comparison.
+    numbers:
+      - {source: docs/01_business_processes.md, section: "1.7", label: "Last 3 months", value: "July–September 2026"}
+      - {source: docs/01_business_processes.md, section: "1.7", label: "Last 3 months", value: "April–June 2026"}
+    inputs: []
+    bqs: [BQ-06]
+
+  next_90_days:
+    name: Next 90 days
+    definition: >-
+      A renewal date from 1 October to 29 December 2026 inclusive. Contract lines with no
+      renewal date are listed separately, never assumed in or out.
+    numbers:
+      - {source: docs/01_business_processes.md, section: "1.7", label: "Next 90 days", value: "1 October to 29 December 2026"}
+    inputs: [crm_contract_lines.Renewal Date__value]
+    bqs: [BQ-05]
+
+  active_customer:
+    name: Active customer
+    definition: >-
+      A CRM account whose Status is 'active' at the as-of date. Accounts with Status
+      'closed' (they have a Closed Date) are not active. A duplicate CRM record is not a
+      separate customer: it counts once, under its main record in the crosswalk (D-020,
+      D-021). Active does not depend on recent activity: an active customer with no tickets
+      or orders in a period is still active.
+    numbers: []
+    inputs: [crm_accounts.Status, crm_accounts.Closed Date__value, crosswalk.resolved_account_id]
+    bqs: [BQ-06, BQ-09]
+
+  open_ticket:
+    name: Open ticket
+    definition: >-
+      A ticket opened before the as-of moment whose closed_at is empty. Its age is the
+      as-of moment minus opened_at, in elapsed hours (D-001).
+    numbers:
+      - {source: docs/01_business_processes.md, section: "1.7", label: "Open ticket", value: "closed_at"}
+    inputs: [helpdesk_tickets.opened_at__value, helpdesk_tickets.closed_at__value]
+    bqs: [BQ-02, BQ-03, BQ-15]
+
+  response_sla_breach:
+    name: Response SLA breach
+    definition: >-
+      A ticket breaches its response target when the time from opened_at to
+      first_responded_at is more than the response target for its priority; it meets the
+      target when that time is equal to or less than the target. Times are elapsed
+      wall-clock hours, not business hours (D-001). Response compliance is measured only on
+      tickets where response_sla_measurable is true; closed tickets with no first response
+      are excluded and counted separately (D-004). Tickets with no valid priority
+      (priority__value empty) have no target: they are excluded and counted separately.
+      Response targets: P1 1 hour, P2 2 hours, P3 4 hours, P4 8 hours.
+    numbers:
+      - {source: docs/01_business_processes.md, section: "1.3", label: P1, value: "1 hour"}
+      - {source: docs/01_business_processes.md, section: "1.3", label: P2, value: "2 hours"}
+      - {source: docs/01_business_processes.md, section: "1.3", label: P3, value: "4 hours"}
+      - {source: docs/01_business_processes.md, section: "1.3", label: P4, value: "8 hours"}
+    inputs: [helpdesk_tickets.opened_at__value, helpdesk_tickets.first_responded_at__value,
+             helpdesk_tickets.priority__value, helpdesk_tickets.response_sla_measurable]
+    bqs: [BQ-01, BQ-08, BQ-15]
+
+  resolution_sla_breach:
+    name: Resolution SLA breach
+    definition: >-
+      A closed ticket breaches its resolution target when the time from opened_at to
+      closed_at is more than the resolution target for its priority; it meets the target
+      when that time is equal to or less than the target. Elapsed hours (D-001). Resolution
+      compliance is measured on closed tickets with a valid priority; tickets closed before
+      they were opened (TIME-001) and tickets with no valid priority are excluded and counted
+      separately. Open tickets are not in resolution compliance; an open ticket whose age is
+      past its resolution target is reported separately as open past target.
+      Resolution targets: P1 4 hours, P2 8 hours, P3 24 hours, P4 72 hours.
+    numbers:
+      - {source: docs/01_business_processes.md, section: "1.3", label: P1, value: "4 hours"}
+      - {source: docs/01_business_processes.md, section: "1.3", label: P2, value: "8 hours"}
+      - {source: docs/01_business_processes.md, section: "1.3", label: P3, value: "24 hours"}
+      - {source: docs/01_business_processes.md, section: "1.3", label: P4, value: "72 hours"}
+    inputs: [helpdesk_tickets.opened_at__value, helpdesk_tickets.closed_at__value, helpdesk_tickets.priority__value]
+    bqs: [BQ-01, BQ-02, BQ-03, BQ-06, BQ-08, BQ-15]
+
+  revenue_by_line:
+    name: Revenue by business line
+    definition: >-
+      Each business line has exactly one revenue source, so no amount is counted twice
+      (D-003). BL1, BL3 and BL4: CRM contract lines, annual value ÷ 12 for each month the
+      line is active, labelled "modelled". BL2: telecoms bills only, assigned to the month
+      in bill_month, with re-run duplicate rows removed; the CRM BL2 value is used only for
+      the BQ-13 check, never added. BL5: shop orders only, assigned to the month of
+      order_date. revenue_treatment decides what counts: 'include' is counted; 'exclude'
+      (cancelled and refunded orders) is not counted; 'negative' (credit notes) is counted
+      as a negative amount that reduces revenue. All amounts exclude VAT (D-012). Revenue
+      is attributed to a customer through the crosswalk; records queued or unmatched there
+      are reported as unattributed, not dropped.
+    numbers:
+      - {source: docs/01_business_processes.md, section: "1.2", label: "BL1 Managed IT support", value: "÷ 12"}
+    inputs: [crm_contract_lines.Business Line, crm_contract_lines.Annual Value (GBP)__value,
+             crm_contract_lines.Contract Start__value, crm_contract_lines.End Date__value,
+             telecoms_bills.bill_month__value, telecoms_bills.total__value, telecoms_bills.revenue_treatment,
+             shop_orders.order_date__value, shop_orders.order_total__value, shop_orders.revenue_treatment,
+             crosswalk.resolved_account_id]
+    bqs: [BQ-07, BQ-08, BQ-15]
+
+  at_risk_pattern:
+    name: At-risk pattern (rising tickets and falling spend)
+    definition: >-
+      An active customer matches the at-risk pattern when tickets rise AND at least one
+      spend source falls, comparing the last 3 months with the previous 3 months.
+      Tickets rise: last-quarter tickets are at least 2.0 × previous-quarter tickets and at
+      least 8. Telecoms (BL2) spend falls: previous-quarter bill total above zero and the
+      last-quarter total, net of credit notes, at most 0.85 × the previous quarter. Shop
+      (BL5) spend falls: measured on combined spend across all of a customer's shop
+      accounts, previous quarter above zero and last quarter at most 0.4 × the previous
+      quarter, counting only orders with revenue_treatment 'include'. Records are attributed
+      through the crosswalk. This is the documented pattern (D-011, D-013, D-016), not the
+      Phase 4 at-risk score, which must combine signals and rank by score then annual
+      contract value (BQ-06).
+    numbers:
+      - {source: config/generator.yaml, key: tickets.at_risk_rise.ratio, value: 2.0}
+      - {source: config/generator.yaml, key: tickets.at_risk_rise.min_last_quarter, value: 8}
+      - {source: config/generator.yaml, key: telecoms.at_risk_fall.max_ratio, value: 0.85}
+      - {source: config/generator.yaml, key: shop.at_risk_fall.max_ratio, value: 0.4}
+    inputs: [crm_accounts.Status, helpdesk_tickets.opened_at__value, telecoms_bills.bill_month__value,
+             telecoms_bills.total__value, shop_orders.order_date__value, shop_orders.order_total__value,
+             shop_orders.revenue_treatment, crosswalk.resolved_account_id]
+    bqs: [BQ-06]
