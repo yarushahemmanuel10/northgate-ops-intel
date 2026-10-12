@@ -1,0 +1,36 @@
+# Ground truth about the knowledge base itself (not a KB document; loaders skip files
+# starting with "_"). Synthetic: Northgate IT Services Ltd is a fictional company.
+
+superseded:
+  - old: KB-0026
+    current: KB-0015
+    superseded_on: 2025-11-03
+    conflict: >-
+      KB-0026 tells customers to report a site-wide internet outage by email and to restart
+      the router themselves. KB-0015 says outages are P1/P2 and must be phoned in, and that
+      customers must not restart the router (logs are needed; the backup connection can be
+      interrupted).
+
+near_duplicates:
+  - pair: [KB-0005, KB-0027]
+    topic: access.password_reset
+    agree: true
+    note: Same procedure, different author and wording.
+  - pair: [KB-0012, KB-0028]
+    topic: printing.printer_offline
+    agree: true
+    note: Same procedure, different author and wording.
+  - pair: [KB-0001, KB-0029]
+    topic: email.mailbox_full
+    agree: true
+    note: Same procedure, different author and wording.
+  - pair: [KB-0008, KB-0030]
+    topic: access.mfa
+    agree: false
+    note: >-
+      They disagree on who completes registration of a new phone. KB-0008 says the user
+      re-registers the authenticator on their own device while the agent stays on the phone.
+      KB-0030 says an agent or engineer completes the registration on the user's phone during
+      a call or visit and the user must not re-register alone. Both are marked current.
+      Evaluation questions on this detail should either be avoided or accept the answer only
+      if it notes the conflict.

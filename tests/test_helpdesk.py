@@ -48,7 +48,7 @@ def test_raw_file_never_contains_account_ids(built):
 
 def test_every_ticket_has_a_true_account(built):
     customers, _, raw, truth, _, _ = built
-    assert list(truth.columns) == ["ticket_id", "account_id", "topic_id"]
+    assert list(truth.columns) == ["ticket_id", "account_id", "topic_id", "kb_article_id", "kb_link_outdated"]
     assert truth.ticket_id.tolist() == raw.ticket_id.tolist()
     assert truth.ticket_id.is_unique
     assert set(truth.account_id) <= set(customers.account_id)
@@ -153,7 +153,6 @@ def test_categories_match_config_and_topics(cfg, parsed):
     assert (parsed.category == parsed.topic_id.map(lambda t: TOPICS[t]["category"])).all()
     assert not parsed.description.str.contains("{", regex=False).any()
     assert not parsed.resolution_notes.str.contains("{", regex=False).any()
-    assert (parsed.kb_article_id == "").all() or parsed.kb_article_id.isna().all()
 
 
 def test_priorities_allowed_for_topic(parsed):

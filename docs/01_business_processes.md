@@ -138,8 +138,25 @@ One format per record type, used in every document, the generator and the code.
 | Telecoms bill | `BILL-` + 6 digits | `BILL-004410` | Telecoms billing system |
 | Business line | `BL1`–`BL5` | `BL2` | This fact sheet |
 
-Knowledge base documents share one ID series; front matter field `doc_type` (`article`
+Knowledge base documents share one ID series; front matter field `type` (`article`
 or `policy`) tells them apart.
+
+### 1.9 Service standards used in the knowledge base
+
+The policy documents in `knowledge_base/` may only use numbers stated here or in §1.3
+(tested in `tests/test_kb.py`).
+
+| Standard | Value |
+|---|---|
+| Service desk hours | Monday to Friday, 08:00 to 18:00 (UK time), excluding bank holidays |
+| Out-of-hours cover | P1 only, 24 hours a day, 7 days a week, by an on-call engineer |
+| How to report | P1 and P2 by phone; P3 and P4 through the support portal or by email |
+| First-line escalation | A ticket not resolved at first line by 50% of its resolution target moves to an engineer |
+| Management escalation | Any P1 still open 2 hours after it was opened is reported to the operations director |
+| Backup retention | Nightly backups, 30 daily copies kept |
+| Password standard | Minimum 12 characters; multi-factor authentication required on every account |
+| Leavers | Accounts disabled on the leaving date; mailbox access for the line manager for 30 days |
+| Phishing reports | Use the report button in the email client; do not forward suspicious emails |
 
 ## 2. Core processes
 

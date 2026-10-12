@@ -186,7 +186,7 @@ def generate_tickets(cfg: dict[str, Any], customers: pd.DataFrame, lines: pd.Dat
     df.loc[df.first_responded_at > moment, "first_responded_at"] = pd.NaT
 
     raw = df[RAW_COLUMNS[:-1]].copy()
-    raw["kb_article_id"] = ""            # filled from the knowledge base in a later step
+    raw["kb_article_id"] = ""            # filled from the knowledge base by generator.kb_links
     truth = df[["ticket_id", "account_id", "topic_id"]].copy()
     return raw, truth
 
@@ -243,8 +243,10 @@ def write(cfg, raw: pd.DataFrame, truth: pd.DataFrame, raw_dir: Path = RAW_DIR,
 
 
 def build(cfg, raw_dir: Path = RAW_DIR, truth_dir: Path = GROUND_TRUTH_DIR, seed: int | None = None):
+    from generator.kb_links import apply_kb_links
     customers, lines = generate(cfg, *make_rngs(cfg["seed"] if seed is None else seed))
     raw, truth = generate_tickets(cfg, customers, lines, seed=seed)
+    raw, truth = apply_kb_links(cfg, raw, truth, seed=seed)     # own stream; tickets unchanged
     write(cfg, raw, truth, raw_dir, truth_dir)
     return customers, lines, raw, truth
 

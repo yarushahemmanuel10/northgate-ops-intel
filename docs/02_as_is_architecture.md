@@ -112,10 +112,15 @@ the company name, which each team writes differently.
 
 - **Purpose:** help articles for service desk agents and the SLA policy documents.
 - **Record:** one Markdown file per document, with YAML front matter.
-- **Key fields (front matter):** `id` (`KB-0001` format for every document),
-  `doc_type` (article, policy), `title`, `category`, `status` (current, superseded), `superseded_by` (optional), `updated`.
+- **Key fields (front matter):** `id` (`KB-0001` format for every document), `title`,
+  `type` (article, policy), `topic_ids`, `author` (a team or role, never a person),
+  `created`, `updated`, `status` (current, superseded), `superseded_by`, and
+  `superseded_on` on the superseded article. The documents live in `knowledge_base/`
+  and are committed to the repository; `knowledge_base/_meta.yaml` records which
+  article was superseded and which pairs are near-duplicates.
 - **Known quality problems:**
-  - Near-duplicate articles written by different people for the same problem.
+  - Near-duplicate articles written by different teams for the same problem; one pair
+    disagrees on a detail.
   - At least one superseded article that is still easy to find and still linked from
     tickets.
   - Inconsistent categories compared with the helpdesk tool.

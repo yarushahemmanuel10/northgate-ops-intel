@@ -175,6 +175,13 @@ shop:
     max_ratio: 0.4
     order_reduction_range: [0.75, 0.95]  # share of at-risk orders removed from July 2026
 
+knowledge_base:
+  directory: knowledge_base
+  # When a ticket used an article, which article is linked: articles written for one topic
+  # are chosen more often than general guides that list several topics.
+  specific_article_weight: 3
+  general_guide_weight: 1
+
 # Customers given a deliberate "rising tickets, falling spend" pattern
 # (last 3 months vs previous 3 months, D-002). Ground truth for BQ-06.
 at_risk_customers: 10
