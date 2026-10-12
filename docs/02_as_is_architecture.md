@@ -135,6 +135,12 @@ it can be measured.
 | QI-10 | Cancelled, refunded and credit-note amounts | Shop, telecoms | Cancelled and refunded orders excluded from revenue; credit notes kept and flagged |
 | QI-11 | Telecoms line sold in CRM with no telecoms account, or the reverse | CRM, telecoms | Listed by the BQ-13 check after entity resolution |
 
+The ground truth also contains a few **look-alike company pairs**: different companies with
+confusingly similar names (for example "Cleveland Accountants Ltd" and "Cleveland
+Accountancy Ltd"). They are not a defect but a trap for entity resolution: matching them
+together would be a false merge. They are kept separate from QI-04's CRM duplicates, which
+are the same company entered twice.
+
 ## 2. How data flows today
 
 ```mermaid

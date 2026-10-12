@@ -39,6 +39,47 @@ revenue_share_targets:
   BL4: 0.10
   BL5: 0.15
 
+customers:
+  # Distinct companies with confusingly similar names (not duplicates: different
+  # companies, different ACC- IDs). Tests entity resolution's false-match risk.
+  lookalike_company_pairs: 4
+  account_managers: [Priya Lawson, Gareth Milburn, Joanne Hesketh]   # fictional
+  sector_weights:
+    logistics: 0.16
+    manufacturing: 0.18
+    professional services: 0.18
+    education: 0.08
+    healthcare: 0.10
+    retail: 0.12
+    charities: 0.08
+    construction: 0.10
+  # First contract start for customers that predate the data window.
+  established_start_range: [2019-01-01, 2025-03-31]
+  # First contract start for new customers (inside the window).
+  new_start_range: [2025-05-01, 2026-09-15]
+  # Closure dates for closed customers (inside the window, leaving time for activity first).
+  closed_date_range: [2025-07-01, 2026-08-31]
+  # Months after a customer's first start at which an additional business line may begin.
+  additional_line_offset_months: [0, 36]
+  # Names containing any of these (case-insensitive) are rejected. A small guard, not a
+  # check against real company registers (D-006).
+  name_blocklist: [Northgate, Unity, University, Council, NHS, Police, Fire Service,
+                   Greggs, Nissan, Sage, Vertu, Hitachi]
+
+# Annual values in GBP, drawn uniformly and rounded to the nearest 100. Ranges were
+# calibrated on the average of seeds 1-50 (not on the project seed), so the expected
+# revenue mix lands near revenue_share_targets on average (D-007).
+contract_values:
+  annual_value_range:
+    BL1: [5300, 18000]
+    BL2: [7100, 23400]     # CRM value; BL2 revenue itself comes from billing (D-003)
+    BL3: [5700, 20800]
+    BL4: [9300, 32000]
+  # BL5 has no contract line. Each shop customer gets an annual spend budget that the
+  # shop generator realises as orders.
+  shop_annual_budget_range: [1600, 9000]
+  term_years_weights: {1: 0.5, 2: 0.3, 3: 0.2}
+
 tickets:
   priority_mix: {P1: 0.04, P2: 0.16, P3: 0.50, P4: 0.30}
   # SLA targets in elapsed hours (fact sheet §1.3, D-001).

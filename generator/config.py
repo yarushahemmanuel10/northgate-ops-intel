@@ -53,7 +53,8 @@ def _walk_rates(prefix: str, node: Any) -> None:
 
 def validate(cfg: dict[str, Any]) -> None:
     for key in ("seed", "window", "as_of_date", "volumes", "business_line_uptake",
-                "revenue_share_targets", "tickets", "at_risk_customers", "quality_issues"):
+                "revenue_share_targets", "customers", "contract_values", "tickets",
+                "at_risk_customers", "quality_issues"):
         if key not in cfg:
             raise ConfigError(f"missing top-level key: {key}")
 
@@ -97,8 +98,39 @@ def validate(cfg: dict[str, Any]) -> None:
         _check_share(f"tickets.resolution_breach_rate.{p}", r)
     _check_share("tickets.kb_link_rate", t["kb_link_rate"])
 
-    if cfg["at_risk_customers"] > v["customers"]:
-        raise ConfigError("at_risk_customers cannot exceed customers")
+    c = cfg["customers"]
+    _check_sums_to_one("customers.sector_weights", c["sector_weights"])
+    if len(c["account_managers"]) < 1:
+        raise ConfigError("customers.account_managers must not be empty")
+    for key in ("established_start_range", "new_start_range", "closed_date_range"):
+        lo, hi = c[key]
+        if not (isinstance(lo, dt.date) and isinstance(hi, dt.date) and lo < hi):
+            raise ConfigError(f"customers.{key} must be two dates in increasing order")
+    if c["established_start_range"][1] >= start:
+        raise ConfigError("established customers must start before the window")
+    for key in ("new_start_range", "closed_date_range"):
+        lo, hi = c[key]
+        if lo < start or hi > end:
+            raise ConfigError(f"customers.{key} must lie inside the window")
+    lo, hi = c["additional_line_offset_months"]
+    if not 0 <= lo <= hi:
+        raise ConfigError("customers.additional_line_offset_months must be 0 <= min <= max")
+    if 2 * c["lookalike_company_pairs"] > v["customers"]:
+        raise ConfigError("lookalike pairs need two customers each")
+
+    cv = cfg["contract_values"]
+    if set(cv["annual_value_range"]) != {"BL1", "BL2", "BL3", "BL4"}:
+        raise ConfigError("contract_values.annual_value_range must list exactly BL1-BL4")
+    for name, (lo, hi) in [*cv["annual_value_range"].items(),
+                           ("shop_annual_budget_range", cv["shop_annual_budget_range"])]:
+        if not 0 < lo < hi:
+            raise ConfigError(f"contract_values {name}: need 0 < min < max")
+    _check_sums_to_one("contract_values.term_years_weights",
+                       {str(k): w for k, w in cv["term_years_weights"].items()})
+
+    n_special = v["new_customers_in_window"] + v["closed_customers"] + cfg["at_risk_customers"]
+    if n_special > v["customers"]:
+        raise ConfigError("new, closed and at-risk customers are disjoint and must fit in customers")
 
     qi = cfg["quality_issues"]
     for site, s in qi["QI-01_name_variants"].items():

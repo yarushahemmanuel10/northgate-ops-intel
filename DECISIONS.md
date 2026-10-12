@@ -34,3 +34,15 @@ One entry per design choice: the choice, the alternatives considered, and the re
 - **Alternatives:** pip with `requirements.txt`; lower-bound pins (`>=`); conda; Python 3.11 or 3.13.
 - **Reason:** Anyone cloning the repo gets the same versions with `uv sync`, which is needed for every figure to be reproducible. 3.12 meets the brief's 3.11+ requirement and is widely supported by the libraries planned (sentence-transformers, ChromaDB, Prefect, Streamlit). Exact pins in `pyproject.toml` make the versions visible without reading the lock file.
 - **Note:** the build environment used during development keeps its virtual environment in `.venv-linux/` (ignored by git), so a local `uv sync` on macOS can create its own `.venv/` without clashing.
+
+## D-006: Fictional company names, with honest wording about real companies
+- **Choice:** Customer names are built from generic word lists (North East place words, trade words, legal suffixes, and surnames from a seeded Faker instance). A small blocklist in `config/generator.yaml` rejects names containing specific words (Northgate, real brand names, public-sector words). Every generated file is labelled as synthetic and fictional.
+- **What is not claimed:** names were not checked against Companies House or any register of real companies, which cannot be done offline. Because the names are built from common words, some may coincidentally match real businesses. Documents say "fictional" and never "verified not to exist".
+- **Alternatives:** an online check against Companies House (needs network and an API key, and still can't rule out unregistered businesses); obviously artificial names such as "Company 017" (removes the realistic name messiness that entity resolution must handle).
+- **Reason:** Realistic names are needed for realistic matching problems; honest wording keeps the claim to what can be verified.
+
+## D-007: Uptake and contract values calibrated to the target revenue mix
+- **Choice:** Each business line is taken by exactly `round(rate × 120)` customers (plus a few forced so at-risk customers have the lines their pattern needs). Annual value ranges per line live in `config/generator.yaml` and were calibrated on the average of seeds 1–50, not on the project seed.
+- **Expected mix:** computed by `python -m generator.customers` over the 18-month window, counting whole active months. BL2 and BL5 figures at this stage are stand-ins (CRM BL2 value and shop budgets); real BL2 and BL5 revenue is measured after the billing and shop generators run.
+- **Alternatives:** independent random uptake per customer (seed-dependent mix: up to 8 points off target on some seeds); tuning ranges on the project seed alone (fits that seed exactly but is overfitted, and drifts on others).
+- **Reason:** The mix should be near target because of the design, not because of a lucky seed. Tests check the project seed is within 1.5 points of every target and held-out seeds 101–110 within 3 points.
