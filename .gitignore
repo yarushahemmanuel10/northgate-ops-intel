@@ -1,0 +1,41 @@
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+
+# Generated data (reproducible from the seeded generator)
+data/raw/
+data/processed/
+data/rejected/
+data/*.duckdb
+data/*.duckdb.wal
+data/*.sqlite
+# data/ground_truth/ is also generated; only its schema is documented
+data/ground_truth/
+
+# Vector store and caches
+chroma/
+eval/cache/
+.cache/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Logs
+*.log
+logs/
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+
+# Power BI working files (built manually, not generated)
+*.pbix
