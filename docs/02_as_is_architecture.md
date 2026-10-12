@@ -4,7 +4,7 @@
 > invented Northgate IT Services Ltd.
 
 This document records how Northgate's data is held and moved today, before the platform
-exists. Section 1 is the inventory of source systems. Section 2 (added in step 0.6) shows
+exists. Section 1 is the inventory of source systems. Section 2 shows
 how data flows between them and where the pain points are.
 
 ## 1. Source system inventory
@@ -14,10 +14,10 @@ how data flows between them and where the pain points are.
 | System | Owner | Holds | Format used in prototype | Customer identifier | How data gets out today | Refresh |
 |---|---|---|---|---|---|---|
 | Helpdesk tool | Service desk lead | Support tickets | CSV export | None — customer name typed by agent | Manual CSV export | Monthly, for SLA report |
-| CRM workbook | Account management | Customer accounts, contracts, renewal dates | Excel (.xlsx) | `ACC-0001` style | The workbook itself, emailed around | Edited ad hoc |
+| CRM workbook | Account management | Customer accounts; contract lines per business line | Excel (.xlsx), two sheets | `ACC-0001` style | The workbook itself, emailed around | Edited ad hoc |
 | Online shop | Procurement | Orders and order lines | JSON from REST API | Numeric shop customer ID, e.g. `1042` | Admin screen; API exists but unused | Live |
 | Telecoms billing system | Telecoms team, Finance | Telecoms contracts, monthly bills | CSV export | Account number, e.g. `TEL-50017` | Manual CSV export | Monthly, after bill run |
-| Knowledge base | Service desk lead | Help articles, SLA policies | Markdown with front matter | Not applicable | Read in a browser | Edited ad hoc |
+| Knowledge base | Service desk lead | Help articles, SLA policies | Markdown with front matter | Not applicable (documents use `KB-0001`) | Read in a browser | Edited ad hoc |
 
 There is no shared customer key. The only thing that links a customer across systems is
 the company name, which each team writes differently.
@@ -26,7 +26,8 @@ the company name, which each team writes differently.
 
 - **Purpose:** log and track support tickets for BL1 managed IT support.
 - **Record:** one row per ticket.
-- **Key fields:** `ticket_id` (e.g. `INC-2025-00001`), `opened_at`, `closed_at`,
+- **Key fields:** `ticket_id` (e.g. `INC-00731`), `opened_at`, `first_responded_at`,
+  `closed_at`,
   `priority` (P1–P4), `category`, `customer_name` (free text), `description`,
   `resolution_notes`, `kb_article_id` (optional), `agent`.
 - **Identifier scheme:** tickets have IDs; customers do not. Agents type the customer name
@@ -38,16 +39,20 @@ the company name, which each team writes differently.
   - Categories used inconsistently ("Email", "email", "E-mail", "Outlook").
   - Open tickets have empty `closed_at`; a few closed tickets have `closed_at` earlier
     than `opened_at`.
+  - `first_responded_at` missing on some tickets (the agent skipped the status change),
+    and occasionally earlier than `opened_at`.
   - `kb_article_id` often blank even when an article was used; sometimes points to a
     superseded article.
 
 ### 1.3 CRM workbook
 
 - **Purpose:** the account managers' list of customers and contracts.
-- **Record:** one row per customer account.
-- **Key fields:** `account_id` (`ACC-0001`), `company_name`, `sector`,
-  `account_manager`, `business_lines`, `contract_value_annual`, `contract_start`,
-  `renewal_date`, `status` (active, closed).
+- **Records:** two sheets.
+  - *Accounts* — one row per customer: `account_id` (`ACC-0001`), `company_name`,
+    `sector`, `account_manager`, `status` (active, closed).
+  - *Contract lines* — one row per business line sold to a customer: `line_id`
+    (`CL-0001`), `account_id`, `business_line` (BL1–BL4), `annual_value`,
+    `contract_start`, `renewal_date`. Shop purchases (BL5) have no contract line.
 - **Identifier scheme:** sequential account IDs; the most trusted customer list, so the
   platform treats it as the master list for canonical customers.
 - **Known quality problems:**
@@ -57,6 +62,8 @@ the company name, which each team writes differently.
   - Some renewal dates missing.
   - A few duplicate rows for the same customer, created when someone re-added an account.
   - Some customers listed as active who have no activity in any other system.
+  - BL2 contract lines for customers with no matching telecoms account, and telecoms
+    accounts with no BL2 contract line in the CRM.
 
 ### 1.4 Online shop
 
@@ -83,9 +90,9 @@ the company name, which each team writes differently.
 - **Purpose:** contracts and monthly bills for BL2 broadband and VoIP.
 - **Records:** two exports: contracts (one row per service contract) and bills (one row
   per account per month).
-- **Key fields — contracts:** `contract_ref`, `account_no` (`TEL-50017`),
+- **Key fields — contracts:** `contract_ref` (`TC-00001`), `account_no` (`TEL-50017`),
   `account_name`, `service_type`, `monthly_charge`, `start_date`, `end_date`.
-- **Key fields — bills:** `bill_id`, `account_no`, `bill_month`, `line_rental`,
+- **Key fields — bills:** `bill_id` (`BILL-000001`), `account_no`, `bill_month`, `line_rental`,
   `call_charges`, `total`.
 - **Identifier scheme:** the billing system's own account numbers; names written in the
   billing system's style (often upper case, abbreviated to fit a field length).
@@ -100,8 +107,8 @@ the company name, which each team writes differently.
 
 - **Purpose:** help articles for service desk agents and the SLA policy documents.
 - **Record:** one Markdown file per document, with YAML front matter.
-- **Key fields (front matter):** `id` (e.g. `KB-0012`, `POL-SLA-01`), `title`,
-  `category`, `status` (current, superseded), `superseded_by` (optional), `updated`.
+- **Key fields (front matter):** `id` (`KB-0001` format for every document),
+  `doc_type` (article, policy), `title`, `category`, `status` (current, superseded), `superseded_by` (optional), `updated`.
 - **Known quality problems:**
   - Near-duplicate articles written by different people for the same problem.
   - At least one superseded article that is still easy to find and still linked from
@@ -110,8 +117,9 @@ the company name, which each team writes differently.
 
 ### 1.7 Quality problems the synthetic data must contain
 
-Each problem above becomes a deliberate defect in the generated data (Phase 1, step 1.9),
-recorded with ground truth so the platform's handling of it can be measured.
+The Phase 1 generator injects each problem above as a deliberate defect and records every
+injected instance in `data/ground_truth/known_issues.csv`, so the platform's handling of
+it can be measured.
 
 | ID | Problem | Systems | How Layer 1 is expected to handle it |
 |---|---|---|---|
@@ -122,9 +130,10 @@ recorded with ground truth so the platform's handling of it can be measured.
 | QI-05 | Invalid values | All | Validation rules; rejected-rows log |
 | QI-06 | Inconsistent categories | Helpdesk, knowledge base | Controlled vocabulary mapping |
 | QI-07 | Personal data in free text | Helpdesk | Masking before any LLM call (Phase 6) |
-| QI-08 | Missing values (renewal dates, delivery dates, KB links) | CRM, shop, helpdesk | Kept and flagged, not invented |
+| QI-08 | Missing values (renewal dates, delivery dates, first-response times, KB links) | CRM, shop, helpdesk | Kept and flagged, not invented |
 | QI-09 | Superseded knowledge base article | Knowledge base | Excluded from retrieval |
-| QI-10 | Cancelled, refunded and credit-note amounts | Shop, telecoms | Kept and flagged; excluded from revenue KPIs |
+| QI-10 | Cancelled, refunded and credit-note amounts | Shop, telecoms | Cancelled and refunded orders excluded from revenue; credit notes kept and flagged |
+| QI-11 | Telecoms line sold in CRM with no telecoms account, or the reverse | CRM, telecoms | Listed by the BQ-13 check after entity resolution |
 
 ## 2. How data flows today
 

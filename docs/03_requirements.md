@@ -16,8 +16,10 @@ of scope.
 - **Sources:** helpdesk
 - **Answered by:** Layer 3
 - **Relieves:** PP-02, PP-08
-- **Answered when:** response and resolution SLA compliance (%) per priority per month,
-  using the targets in `01` §1.3, matches a hand calculation on a small fixed dataset.
+- **Answered when:** response SLA compliance (from `first_responded_at`) and resolution
+  SLA compliance (from `closed_at`), in % per priority per month, using the targets in
+  `01` §1.3 (response SLA kept per D-004), match a hand calculation on a small fixed dataset. Tickets missing
+  `first_responded_at` are excluded from response compliance and counted separately.
 
 ### BQ-02 — Which open tickets are close to breaching their SLA?
 - **Asked by:** service desk lead
@@ -25,8 +27,9 @@ of scope.
 - **Sources:** helpdesk
 - **Answered by:** Layer 4
 - **Relieves:** PP-03
-- **Answered when:** an automated flow writes an alert for every open ticket past a set
-  share of its resolution target, and for none below it, on a fixed test dataset.
+- **Answered when:** an automated flow writes an alert for every ticket open at the as-of
+  moment (`01` §1.7) whose age is past a set share of its resolution target, and for none
+  below it, on a fixed test dataset.
 
 ### BQ-03 — How long do tickets take to resolve, and is that improving?
 - **Asked by:** service desk lead, operations director
@@ -50,12 +53,14 @@ of scope.
 ### BQ-05 — Which contracts renew in the next 90 days, and what are they worth?
 - **Asked by:** account managers, directors
 - **Decision supported:** `01` §2.4 — renewals in 90 days
-- **Sources:** CRM, telecoms contracts
+- **Sources:** CRM contract lines (telecoms end dates are compared in BQ-13, not added
+  here, so no contract appears twice)
 - **Answered by:** Layers 3 and 4
 - **Relieves:** PP-04
-- **Answered when:** a list of contracts with renewal or end dates in the next 90 days,
-  with annual value and account manager, matches a filter applied by hand; accounts with a
-  missing renewal date are listed separately.
+- **Answered when:** a list of contract lines with renewal dates from 1 October to
+  29 December 2026 (`01` §1.7), with annual value, business line and account manager,
+  matches a filter applied by hand; contract lines with a missing renewal date are listed
+  separately.
 
 ### BQ-06 — Which customers are at risk: rising tickets and falling spend?
 - **Asked by:** account managers, operations director
@@ -65,17 +70,21 @@ of scope.
 - **Answered by:** Layers 1, 2, 3, 4 and 5
 - **Relieves:** PP-01
 - **Answered when:** each active customer has an at-risk score built from stated, documented
-  rules (or a model with an honest evaluation), and the score's inputs can be shown for
-  any customer.
+  rules (or a model with an honest evaluation), comparing the last 3 months with the
+  previous 3 months (`01` §1.7); the score's inputs can be shown for any customer; and
+  customers are ranked for retention effort by score, then annual contract value, with the
+  ranking matching a hand-ordered fixed dataset.
 
 ### BQ-07 — What is our revenue by customer and business line, per month?
 - **Asked by:** directors, finance
 - **Decision supported:** `01` §2.3 — customer spend trend; directors' monthly pack
-- **Sources:** shop, telecoms billing, CRM (contract values for BL1, BL3, BL4)
+- **Sources:** one per line, as set in `01` §1.2: CRM contract lines for BL1, BL3 and BL4
+  (modelled); telecoms bills only for BL2; shop orders only for BL5
 - **Answered by:** Layers 2 and 3
 - **Relieves:** PP-02, PP-05
 - **Answered when:** revenue excludes cancelled and refunded orders and duplicate bills,
-  handles credit notes explicitly, and reconciles with cleaned source totals.
+  handles credit notes explicitly, never adds CRM BL2 values to billed BL2 revenue,
+  labels BL1/BL3/BL4 figures as modelled, and reconciles with cleaned source totals.
 
 ### BQ-08 — What does this customer buy from us, and how are they doing overall?
 - **Asked by:** account managers
@@ -124,14 +133,17 @@ of scope.
 - **Answered when:** article usage counts and the tickets still linking to superseded
   articles are listed; the share of tickets with no article link is shown.
 
-### BQ-13 — Do CRM contract dates agree with the telecoms billing system?
+### BQ-13 — Do the CRM and the telecoms billing system agree?
 - **Asked by:** finance, account managers
 - **Decision supported:** `01` §2.1 — are we billing for everything sold
 - **Sources:** CRM, telecoms contracts
 - **Answered by:** Layers 1 and 2
 - **Relieves:** PP-05
-- **Answered when:** every matched customer whose CRM renewal date and telecoms end date
-  differ by more than a stated tolerance is listed.
+- **Answered when:** three lists are produced and match the generator's ground truth:
+  (a) matched customers whose CRM BL2 renewal date and telecoms end date differ by more
+  than a stated tolerance; (b) customers with a BL2 contract line in the CRM but no
+  matching telecoms account (line sold, possibly not billed); (c) telecoms accounts with
+  no BL2 contract line in the CRM.
 
 ### BQ-14 — How trustworthy is today's data?
 - **Asked by:** operations director, platform owner
@@ -151,6 +163,17 @@ of scope.
 - **Relieves:** PP-02
 - **Answered when:** an LLM-written summary is produced from KPI values, and every number
   in its text is checked in code against those values; any mismatch is flagged.
+
+### BQ-16 — Is onboarding on track for new customers?
+- **Asked by:** account managers
+- **Decision supported:** `01` §2.1 — is onboarding on track
+- **Sources:** CRM (first contract start), helpdesk
+- **Answered by:** Layers 1 and 3
+- **Relieves:** PP-01
+- **Answered when:** for every customer whose first contract starts inside the data window
+  and at least 30 days before the as-of date, the platform shows tickets and P1/P2
+  tickets raised in the first 30 days, flags customers above a stated threshold, and
+  matches a hand calculation on a fixed dataset.
 
 ## 2. Out of scope for the prototype
 
@@ -181,3 +204,4 @@ Filled in as later phases are built. A blank cell after its phase is finished is
 | BQ-13 | 1, 2 | | | | |
 | BQ-14 | 1, 2, 4 | | | | |
 | BQ-15 | 5 | | | | |
+| BQ-16 | 1, 3 | | | | |

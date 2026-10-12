@@ -21,6 +21,7 @@ added here first.
 | Customers | About 120 business customers (B2B only; no consumer sales) |
 | Typical customer | 10–250 employees; logistics, manufacturing, professional services, education, healthcare (private clinics), retail, charities, construction |
 | Data window for this prototype | 1 April 2025 to 30 September 2026 (18 months) |
+| As-of date | 30 September 2026 — the day the data is treated as extracted (see §1.7) |
 
 ### 1.2 Business lines
 
@@ -35,6 +36,20 @@ added here first.
 A customer can buy from several lines. Most take BL1; about half also take BL2; BL5 is
 used by most customers occasionally. Revenue shares are targets for the data generator,
 not measured figures.
+
+**Revenue source per line.** Each line's revenue comes from exactly one source, so no
+amount is counted twice (DECISIONS.md D-003).
+
+| Line | Revenue source | Rule |
+|---|---|---|
+| BL1 Managed IT support | CRM contract lines | Annual value ÷ 12 for each month the contract line is active |
+| BL2 Telecoms | Telecoms billing system only | Sum of monthly bills, duplicates removed, credit notes kept and flagged. The CRM's BL2 contract line value is used only for checks (BQ-13), never added to revenue |
+| BL3 Cloud hosting | CRM contract lines | Annual value ÷ 12 per active month |
+| BL4 Bespoke software | CRM contract lines | Annual value ÷ 12 per active month (a simplification: real project revenue is lumpy) |
+| BL5 Shop | Shop orders only | Order totals, excluding cancelled and refunded orders |
+
+BL1, BL3 and BL4 have no transaction source, so their monthly revenue is modelled from
+contract values, not measured. Any report showing it labels it "modelled".
 
 ### 1.3 Service levels (BL1 support tickets)
 
@@ -68,7 +83,7 @@ business hours. See DECISIONS.md D-001.
 | System | Holds | Format the prototype uses |
 |---|---|---|
 | Helpdesk tool | Support tickets | CSV export |
-| CRM workbook | Customer accounts, account managers, contract values, renewal dates | Excel file |
+| CRM workbook | Customer accounts, plus one contract line per business line sold (annual value, start date, renewal date) | Excel file (two sheets) |
 | Online shop | Orders | JSON from a local REST API |
 | Telecoms billing system | Telecoms contracts and monthly bills | CSV export |
 | Knowledge base | Help articles and SLA policy documents | Markdown files |
@@ -86,6 +101,41 @@ solves. The full inventory, with known quality problems, is in
 | Support tickets | about 1,500 |
 | Shop orders | about 3,000 |
 | Knowledge base | 50 documents (help articles plus SLA policies) |
+| New customers onboarded during the window | about 15 (first contract start inside the window) |
+
+### 1.7 As-of date and time rules
+
+The data is treated as extracted at the end of **30 September 2026** (DECISIONS.md D-002).
+Every time-relative calculation uses this date, never the real current date, so results
+are reproducible whenever the code is run.
+
+| Term | Definition |
+|---|---|
+| As-of moment | 2026-10-01 00:00, i.e. the end of 30 September 2026 |
+| Open ticket | Opened before the as-of moment and `closed_at` empty |
+| Ticket age | As-of moment minus `opened_at`, in elapsed hours (D-001) |
+| Next 90 days | Renewal date from 1 October to 29 December 2026 inclusive |
+| Last 3 months / previous 3 months | July–September 2026 / April–June 2026 (calendar months before the as-of date) |
+
+### 1.8 Identifier formats
+
+One format per record type, used in every document, the generator and the code.
+
+| Record | Format | Example | Issued by |
+|---|---|---|---|
+| Customer account (canonical) | `ACC-` + 4 digits | `ACC-0042` | CRM workbook |
+| CRM contract line | `CL-` + 4 digits | `CL-0107` | CRM workbook |
+| Support ticket | `INC-` + 5 digits | `INC-00731` | Helpdesk tool |
+| Knowledge base document (articles and policies) | `KB-` + 4 digits | `KB-0012` | Knowledge base |
+| Shop customer | Integer | `1042` | Online shop |
+| Shop order | `SO-` + 6 digits | `SO-100001` | Online shop |
+| Telecoms account | `TEL-` + 5 digits | `TEL-50017` | Telecoms billing system |
+| Telecoms contract | `TC-` + 5 digits | `TC-00213` | Telecoms billing system |
+| Telecoms bill | `BILL-` + 6 digits | `BILL-004410` | Telecoms billing system |
+| Business line | `BL1`–`BL5` | `BL2` | This fact sheet |
+
+Knowledge base documents share one ID series; front matter field `doc_type` (`article`
+or `policy`) tells them apart.
 
 ## 2. Core processes
 
@@ -114,7 +164,8 @@ flowchart TD
 ```
 
 **Narrative.** Once a deal is agreed, the account manager adds the customer to the CRM
-workbook with contract value, start date and renewal date. Each other team then creates
+workbook, with one contract line per business line sold (annual value, start date and
+renewal date). Each other team then creates
 the customer again in its own system: the service desk in the helpdesk tool, the telecoms
 team in the billing system, procurement in the online shop. Each person types the company
 name their own way and each system issues its own ID. Nothing links these records except
@@ -255,23 +306,24 @@ telecoms contract end dates that don't agree with the CRM workbook.
 
 ## 3. Summary of decisions the platform must support
 
-| Process | Decision | Platform layer that should support it |
-|---|---|---|
-| Onboarding | Is onboarding on track? | Layer 3 (dashboard), Layer 5 (assistant) |
-| Onboarding | Are we billing for everything sold? | Layer 1 (matching), Layer 2 (unified data) |
-| Onboarding | Which customers could buy more? | Layer 2, Layer 3 |
-| Tickets | Which tickets are about to breach SLA? | Layer 4 (alerts) |
-| Tickets | Are we meeting SLA by priority? | Layer 3 |
-| Tickets | Which customers have unusual ticket volume? | Layer 3 |
-| Tickets | Is the knowledge base helping? | Layer 3, Layer 5 |
-| Tickets | How should an agent handle this problem? | Layer 5 (knowledge base assistant) |
-| Orders | How much is each customer spending, and which way is it trending? | Layer 2, Layer 3 |
-| Orders | Are orders delivered on time? | Layer 3 |
-| Orders | Which products cause faults? | Out of scope for the prototype (needs order–ticket links) |
-| Renewal | Which contracts renew in the next 90 days? | Layer 3, Layer 4 (renewal alert) |
-| Renewal | Is this customer at risk? | Layer 3 (at-risk score), Layer 4, Layer 5 |
-| Renewal | What to offer at renewal? | Layer 5 (assistant over unified data) |
-| Renewal | Where should retention effort go first? | Layer 3 |
+| Process | Decision | Business question (`03`) | Platform layer(s) |
+|---|---|---|---|
+| Onboarding | Is onboarding on track? | BQ-16 | 1, 3 |
+| Onboarding | Are we billing for everything sold? | BQ-13 | 1, 2 |
+| Onboarding | Which customers could buy more? | BQ-09 | 2, 3 |
+| Tickets | Which tickets are about to breach SLA? | BQ-02 | 4 |
+| Tickets | Are we meeting SLA by priority? | BQ-01, BQ-03 | 3 |
+| Tickets | Which customers have unusual ticket volume? | BQ-04 | 1, 3 |
+| Tickets | Is the knowledge base helping? | BQ-12 | 3 |
+| Tickets | How should an agent handle this problem? | BQ-11 | 5 |
+| Orders | How much is each customer spending, and which way is it trending? | BQ-07 | 2, 3 |
+| Orders | Are orders delivered on time? | BQ-10 | 3 |
+| Orders | Which products cause faults? | Out of scope (`03` §2) | — |
+| Renewal | Which contracts renew in the next 90 days? | BQ-05 | 3, 4 |
+| Renewal | Is this customer at risk? | BQ-06 | 1–5 |
+| Renewal | What to offer at renewal? | BQ-08 | 1, 2, 5 |
+| Renewal | Where should retention effort go first? | BQ-06 (ranking) | 3 |
 
-These decisions are turned into numbered business questions, with owners and source
-systems, in `03_requirements.md`.
+Two further questions support decisions outside these four processes: BQ-14 (can today's
+figures be trusted?) and BQ-15 (directors' weekly summary). Full definitions, owners and
+acceptance tests are in `03_requirements.md`.
