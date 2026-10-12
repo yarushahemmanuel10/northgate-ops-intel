@@ -21,7 +21,7 @@ from generator.config import BUSINESS_LINES, load_config
 from generator.names import LOOKALIKE_KINDS, core_name, is_blocked, make_lookalike_pair, make_name
 
 ROOT = Path(__file__).resolve().parents[1]
-GROUND_TRUTH_DIR = ROOT / "data" / "ground_truth"
+GROUND_TRUTH_DIR = ROOT / "data" / "clean" / "ground_truth"   # single runs; run.py writes data/ground_truth
 CONTRACT_LINES = ("BL1", "BL2", "BL3", "BL4")
 SYNTHETIC_HEADER = "# SYNTHETIC DATA - fictional company Northgate IT Services Ltd; all names and figures invented"
 

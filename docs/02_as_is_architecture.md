@@ -147,6 +147,17 @@ second shop accounts have a variant name.
 **CRM duplicates (QI-04)** are new rows with their own `ACC-` IDs (ACC-0121 onwards);
 `data/ground_truth/crm_account_map.csv` maps every raw account ID to the real account.
 
+**Personal data (QI-07)** is fictional by construction: `.example` email domains and Ofcom's
+drama phone ranges. Every inserted value is listed in `known_issues.csv` (`op = pii_span`)
+with its type, so masking can be scored.
+
+**Cancelled and refunded orders (QI-10)** are extra orders, so excluding them gives back the
+true shop revenue exactly; **credit notes** are negative bill rows (`CN-` IDs) that genuinely
+reduce telecoms revenue.
+
+**Telecoms mismatches (QI-11)** never involve at-risk customers, look-alike pairs or the
+account-switch trap, so no planted signal is erased.
+
 | ID | Problem | Systems | How Layer 1 is expected to handle it |
 |---|---|---|---|
 | QI-01 | Same customer under different names | All four data systems | Entity resolution with review queue |

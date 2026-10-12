@@ -8,7 +8,9 @@ import pytest
 
 from generator.config import load_config
 from generator.customers import read_ground_truth_csv
-from generator.messiness import Mess, build, clean_tables, counts_table, decode, undo, write_tables, apply_part_a
+from generator.messiness import (Mess, apply_part_a, apply_part_b, build, clean_tables, counts_table, decode,
+                                 revenue_check, undo, write_tables)
+from generator.patterns import compare
 
 
 @pytest.fixture(scope="module")
@@ -60,9 +62,10 @@ def test_changing_one_rate_does_not_move_other_problems(cfg):
         tables, context = clean_tables(c)
         m = Mess(tables)
         apply_part_a(c, m, context)
+        apply_part_b(c, m, context)
         return m.known_issues()
     a, b = log(cfg), log(other)
-    for q in ("QI-01", "QI-03", "QI-04", "QI-05"):
+    for q in ("QI-01", "QI-03", "QI-04", "QI-05", "QI-07", "QI-08", "QI-10", "QI-11"):
         cols = ["table", "op", "record_key", "field", "original_json", "new_json"]
         assert a[a.qi == q][cols].reset_index(drop=True).equals(b[b.qi == q][cols].reset_index(drop=True)), q
     assert (a.qi == "QI-06").sum() != (b.qi == "QI-06").sum()
@@ -170,3 +173,62 @@ def test_same_seed_identical_bytes(cfg, tmp_path):
     for d1, d2 in (("r1", "r2"), ("t1", "t2")):
         for f in sorted((tmp_path / d1).iterdir()):
             assert f.read_bytes() == (tmp_path / d2 / f.name).read_bytes(), f.name
+
+
+# --- Part B ----------------------------------------------------------------------------------------------
+
+def test_personal_data_spans_are_recorded_and_fictional(cfg, built):
+    clean, mess, known, context, *_ = built
+    spans = known[known.op == "pii_span"]
+    assert len(spans) > 0 and set(spans.note) == {"pii:name", "pii:email", "pii:phone"}
+    messy = {r["ticket_id"]: r["description"] for r in mess.tables["helpdesk"].rows}
+    original = {r["ticket_id"]: r["description"] for r in clean["helpdesk"].rows}
+    staff = {p.split()[-1].lower() for p in cfg["tickets"]["agents"] + cfg["customers"]["account_managers"]}
+    for e in spans.itertuples():
+        text = e.new_value
+        assert text in messy[e.record_key] and text not in original[e.record_key]
+        if e.note == "pii:phone":
+            assert re.fullmatch(r"(07700 900|01632 960)\d{3}", text)
+        elif e.note == "pii:email":
+            assert text.endswith(".example") and "@" in text
+        else:
+            assert text.split()[-1].lower() not in staff
+
+
+def test_kb_links_removed_from_raw_only(cfg, built):
+    clean, mess, known, context, *_ = built
+    truth = context["tickets_truth"].set_index("ticket_id")
+    removed = known[(known.qi == "QI-08") & (known.field == "kb_article_id")]
+    assert len(removed) == round(0.40 * sum(1 for r in clean["helpdesk"].rows if r["kb_article_id"]))
+    for e in removed.itertuples():
+        assert truth.at[e.record_key, "kb_article_id"] == decode(e.original_json) != ""
+
+
+def test_qi11_leaves_planted_customers_alone(cfg, built):
+    _, mess, known, context, report, *_ = built
+    customers = context["customers"].set_index("account_id")
+    protected = set(customers.index[customers.at_risk | (customers.lookalike_group != "")])
+    for account_no, acc in report["qi11_removed"]:
+        assert acc not in protected
+        assert not any(b["account_no"] == account_no for b in mess.tables["telecoms_bills"].rows)
+    truth = context["telecoms_truth"].set_index("account_no")
+    for account_no, acc in report["qi11_added"]:
+        assert truth.at[account_no, "account_id"] == acc and truth.at[account_no, "line_id"] in ("", None)
+        assert any(b["account_no"] == account_no for b in mess.tables["telecoms_bills"].rows)
+    for _, days in report["qi11_shifted"]:
+        assert abs(days) > 30
+
+
+def test_cancelled_refunded_and_duplicates_excluded_restore_bl5(built):
+    clean, mess, known, *_ = built
+    rc = revenue_check(clean, mess.tables, known).set_index(["line", "view"]).revenue
+    assert abs(rc[("BL5", "messy, correctly cleaned")] - rc[("BL5", "clean (before any mess)")]) < 0.005
+
+
+def test_planted_pattern_survives_correct_cleaning(cfg, built):
+    clean, mess, known, context, *_ = built
+    pat = compare(cfg, clean, mess.tables, known, context)
+    risk = set(pat["risk"])
+    assert set(pat["flagged"]["clean"]) == risk | {"ACC-0076"}
+    assert pat["flagged"]["cleaned"] == pat["flagged"]["clean"]
+    assert len(risk & set(pat["flagged"]["naive"])) < len(risk)        # uncleaned data misses at-risk customers

@@ -31,7 +31,7 @@ from generator.helpdesk import LAST_Q, PREV_Q, _open_time
 from generator.streams import named_stream
 
 ROOT = Path(__file__).resolve().parents[1]
-RAW_DIR = ROOT / "data" / "raw"
+RAW_DIR = ROOT / "data" / "clean"   # clean output; only generator.messiness writes data/raw (D-015)
 ORDERS_FILE = "shop_orders.json"
 TIME_FMT = "%Y-%m-%d %H:%M"
 SYNTHETIC_NOTE = ("SYNTHETIC DATA - fictional company Northgate IT Services Ltd; all names and "

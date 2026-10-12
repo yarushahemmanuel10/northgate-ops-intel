@@ -35,7 +35,7 @@ from generator.names import name_variant
 from generator.streams import named_stream
 
 ROOT = Path(__file__).resolve().parents[1]
-RAW_DIR = ROOT / "data" / "raw"
+RAW_DIR = ROOT / "data" / "clean"   # clean output; only generator.messiness writes data/raw (D-015)
 CONTRACT_COLUMNS = ["contract_ref", "account_no", "account_name", "service_type", "monthly_charge",
                     "start_date", "end_date"]
 BILL_COLUMNS = ["bill_id", "account_no", "bill_month", "bill_date", "line_rental", "call_charges", "total"]

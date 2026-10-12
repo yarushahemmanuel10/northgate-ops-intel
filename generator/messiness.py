@@ -25,13 +25,15 @@ import numpy as np
 import pandas as pd
 
 from generator.config import load_config
-from generator.customers import GROUND_TRUTH_DIR, _write_csv, generate, make_rngs, write_ground_truth
-from generator.helpdesk import RAW_DIR, generate_tickets
+from generator.customers import ROOT, _write_csv, generate, make_rngs, write_ground_truth
+from generator.helpdesk import generate_tickets
 from generator.kb_links import apply_kb_links
 from generator.names import LEGAL_SUFFIX_RE, core_name, name_variant
 from generator.streams import named_stream
 
 TIME_FMT = "%Y-%m-%d %H:%M"
+RAW_DIR = ROOT / "data" / "raw"                 # the only writer of data/raw
+GROUND_TRUTH_DIR = ROOT / "data" / "ground_truth"
 KNOWN_ISSUES_COLUMNS = ["issue_id", "qi", "table", "op", "position", "record_key", "field",
                         "original_value", "new_value", "original_json", "new_json", "note"]
 
@@ -124,6 +126,16 @@ class Mess:
         row = self.tables[table].rows.pop(pos)
         self._entry(qi, table, "remove_row", pos, "", row, None, note)
 
+    def annotate(self, qi: str, table: str, pos: int, fld: str, text: str, note: str) -> None:
+        """Record a span of inserted text (e.g. personal data) without changing anything.
+
+        Undo ignores these entries; they exist so masking can be scored against them."""
+        t = self.tables[table]
+        self.log.append({"qi": qi, "table": table, "op": "pii_span", "position": pos,
+                         "record_key": t.rows[pos][t.key], "field": fld, "original_value": "",
+                         "new_value": text, "original_json": encode(None), "new_json": encode(text),
+                         "note": note})
+
     def known_issues(self) -> pd.DataFrame:
         df = pd.DataFrame(self.log, columns=KNOWN_ISSUES_COLUMNS[1:])
         df.insert(0, "issue_id", [f"KI-{i:05d}" for i in range(1, len(df) + 1)])
@@ -175,6 +187,8 @@ def clean_tables(cfg: dict[str, Any], seed: int | None = None) -> tuple[dict[str
     }
     context = {"customers": customers, "lines": lines, "tickets_truth": truth_t,
                "contract_account": dict(zip(contracts.contract_ref, contracts.account_no)),
+               "telecoms_contracts_clean": contracts.to_dict("records"),
+               "telecoms_bills_clean": bills.to_dict("records"),
                "telecoms_truth": truth_tel, "shop_truth": truth_shop, "payload": payload}
     return tables, context
 
@@ -331,7 +345,9 @@ def apply_part_a(cfg: dict[str, Any], mess: Mess, context: dict, seed: int | Non
         mess.add_row("QI-04", "shop_orders", pos + 1, o, note=f"double submission of {orders[pos]['order_id']}")
 
     bills = t["telecoms_bills"].rows
-    picks = _pick(rng, len(bills), round(q4["telecoms_duplicate_bill_rate"] * len(bills)))
+    gone = set(qi11_removed_accounts(cfg, context, seed))
+    cand = [i for i, b in enumerate(bills) if b["account_no"] not in gone]
+    picks = [cand[i] for i in _pick(rng, len(cand), round(q4["telecoms_duplicate_bill_rate"] * len(bills)))]
     for pos in reversed(picks):
         mess.add_row("QI-04", "telecoms_bills", pos + 1, dict(bills[pos]),
                      note=f"bill export re-run: duplicate of {bills[pos]['bill_id']}")
@@ -373,6 +389,228 @@ def apply_part_a(cfg: dict[str, Any], mess: Mess, context: dict, seed: int | Non
     return report
 
 
+def qi11_removed_accounts(cfg: dict[str, Any], context: dict, seed: int) -> list[str]:
+    """Telecoms accounts that QI-11 removes (BL2 line sold, no telecoms account).
+
+    Decided up front from the clean data on its own stream, so QI-04 and QI-10 can avoid
+    these accounts and their counts stay exact. Never an at-risk customer (their bills carry
+    a planted fall), a look-alike, the account-switch trap, or a closed customer."""
+    rng = named_stream(seed, "mess.QI-11.remove")
+    customers = context["customers"].set_index("account_id")
+    switch = set(context["shop_truth"].loc[context["shop_truth"].switches_to_second, "account_id"])
+    protected = set(customers.index[customers.at_risk | (customers.lookalike_group != "")]) | switch
+    acc_of = context["telecoms_truth"].set_index("account_no").account_id
+    eligible = sorted(a for a, acc in acc_of.items() if acc not in protected and customers.status[acc] == "active")
+    k = cfg["quality_issues"]["QI-11_crm_telecoms_mismatch"]["bl2_line_without_telecoms_account"]
+    return sorted(str(x) for x in rng.choice(eligible, size=k, replace=False))
+
+
+# --- Part B: QI-07 to QI-11 ----------------------------------------------------------------------
+
+def _slug(name: str) -> str:
+    import re
+    return re.sub(r"[^a-z0-9]+", "-", core_name(name).replace("&", "and")).strip("-")
+
+
+def apply_part_b(cfg: dict[str, Any], mess: Mess, context: dict, seed: int | None = None) -> dict:
+    from faker import Faker
+    from generator.telecoms import billing_style
+    seed = cfg["seed"] if seed is None else seed
+    qi = cfg["quality_issues"]
+    t = mess.tables
+    customers = context["customers"]
+    names = customers.set_index("account_id").company_name
+    at_risk = set(customers.loc[customers.at_risk, "account_id"])
+    report: dict[str, Any] = {}
+    hd = t["helpdesk"].rows
+    tickets_truth = context["tickets_truth"].set_index("ticket_id").account_id
+
+    # ---- QI-07 personal data in ticket text -------------------------------------------------
+    rng = named_stream(seed, "mess.QI-07")
+    fake = Faker("en_GB")
+    fake.seed_instance(int(rng.integers(2**31)))
+    staff = {p.split()[-1].lower() for p in cfg["tickets"]["agents"] + cfg["customers"]["account_managers"]}
+    prefixes = qi["QI-07_phone_prefixes"]
+
+    def contact_name() -> str:
+        while True:
+            first, last = fake.first_name(), fake.last_name()
+            if last.lower() not in staff and first.lower() not in staff:
+                return f"{first} {last}"
+
+    def phone() -> str:
+        return f"{prefixes[int(rng.integers(len(prefixes)))]}{int(rng.integers(1000)):03d}"
+
+    pii_counts = {"name": 0, "email": 0, "phone": 0}
+    for pos in _pick(rng, len(hd), round(qi["QI-07_pii_in_ticket_text_rate"] * len(hd))):
+        acc = tickets_truth[hd[pos]["ticket_id"]]
+        person = contact_name()
+        first, last = person.split(" ", 1)
+        email = f"{first.lower()}.{last.lower().replace(' ', '')}@{_slug(names[acc])}.example"
+        num = phone()
+        form = int(rng.integers(4))
+        if form == 0:
+            sentence, spans = f" Spoke to {person}.", [(person, "name")]
+        elif form == 1:
+            sentence, spans = f" Contact {person} on {num}.", [(person, "name"), (num, "phone")]
+        elif form == 2:
+            sentence, spans = f" Please email {person} at {email} when fixed.", [(person, "name"), (email, "email")]
+        else:
+            sentence, spans = f" Call back on {num}.", [(num, "phone")]
+        mess.change("QI-07", "helpdesk", pos, "description", hd[pos]["description"] + sentence,
+                    note="personal data added to description")
+        for text, kind in spans:
+            mess.annotate("QI-07", "helpdesk", pos, "description", text, f"pii:{kind}")
+            pii_counts[kind] += 1
+    report["pii_counts"] = pii_counts
+
+    # ---- QI-08 missing values ------------------------------------------------------------------
+    rng = named_stream(seed, "mess.QI-08")
+    q8 = qi["QI-08_missing_values"]
+    lines_tbl = t["crm_lines"].rows
+    cand = [i for i, r in enumerate(lines_tbl) if r["renewal_date"] is not None]
+    for i in _pick(rng, len(cand), round(q8["crm_renewal_date_rate"] * len(cand))):
+        mess.change("QI-08", "crm_lines", cand[i], "renewal_date", None, note="renewal date missing")
+    orders = t["shop_orders"].rows
+    cand = [i for i, o in enumerate(orders) if o["delivered_date"] is not None]
+    n_clean = sum(1 for o in context["payload"]["orders"] if o["delivered_date"] is not None)
+    for i in _pick(rng, len(cand), round(q8["shop_delivered_date_rate"] * n_clean)):
+        mess.change("QI-08", "shop_orders", cand[i], "delivered_date", None, note="delivered date missing")
+    cand = [i for i, r in enumerate(hd) if r["first_responded_at"]]
+    lost_closed = 0
+    for i in _pick(rng, len(cand), round(q8["ticket_first_responded_at_rate"] * len(cand))):
+        lost_closed += bool(hd[cand[i]]["closed_at"])
+        mess.change("QI-08", "helpdesk", cand[i], "first_responded_at", "", note="first response time missing")
+    report["closed_tickets_losing_first_response"] = lost_closed
+    report["closed_tickets"] = sum(1 for r in hd if r["closed_at"])
+    cand = [i for i, r in enumerate(hd) if r["kb_article_id"]]
+    for i in _pick(rng, len(cand), round(q8["ticket_kb_link_missing_when_used_rate"] * len(cand))):
+        mess.change("QI-08", "helpdesk", cand[i], "kb_article_id", "", note="KB link not recorded")
+
+    # ---- QI-10 cancelled and refunded orders, credit notes ------------------------------------------
+    rng = named_stream(seed, "mess.QI-10")
+    q10 = qi["QI-10_negative_or_excluded_amounts"]
+    orders = t["shop_orders"].rows
+    n_orders_clean = len(context["payload"]["orders"])
+    next_no = max(int(o["order_id"][3:]) for o in orders) + 1
+    as_of = cfg["as_of_date"]
+    extra = [("cancelled", round(q10["order_cancelled_rate"] * n_orders_clean)),
+             ("refunded", round(q10["order_refunded_rate"] * n_orders_clean))]
+    n_extra = sum(k for _, k in extra)
+    sources = _pick(rng, len(orders), n_extra)                 # distinct source orders
+    statuses = ["cancelled"] * extra[0][1] + ["refunded"] * extra[1][1]
+    statuses = [statuses[int(i)] for i in rng.permutation(n_extra)]
+    for offset, (src, status) in enumerate(zip(sources, statuses)):
+        pos = src + offset + 1                      # each earlier insert shifts this row by one
+        o = copy.deepcopy(orders[src + offset])
+        placed = dt.datetime.strptime(o["order_date"], TIME_FMT) + dt.timedelta(hours=int(rng.integers(1, 48)))
+        if placed.date() > as_of:
+            placed = dt.datetime.combine(as_of, dt.time(17, 0))
+        o.update(order_id=f"SO-{next_no}", order_date=placed.strftime(TIME_FMT), status=status)
+        if status == "cancelled":
+            o["delivered_date"] = None
+        next_no += 1
+        mess.add_row("QI-10", "shop_orders", pos, o, note=f"{status} order (exclude from revenue)")
+    report["orders_cancelled"], report["orders_refunded"] = extra[0][1], extra[1][1]
+
+    bills = t["telecoms_bills"].rows
+    lo, hi = q10["credit_note_share_of_rental"]
+    seen = set()
+    gone = set(qi11_removed_accounts(cfg, context, seed))
+    cand = [i for i, b in enumerate(bills) if b["account_no"] not in gone
+            and not ((b["bill_id"], b["bill_month"]) in seen or seen.add((b["bill_id"], b["bill_month"])))]
+    picks = [cand[i] for i in _pick(rng, len(cand), round(q10["telecoms_credit_note_rate"] * len(context["telecoms_bills_clean"])))]
+    credits = []
+    for k, pos in enumerate(sorted(picks, reverse=True)):
+        b = bills[pos]
+        amount = round(b["line_rental"] * float(rng.uniform(lo, hi)), 2)
+        cn = dict(b, bill_id=f"CN-{len(picks) - k:06d}", line_rental=-amount, call_charges=0.0, total=-amount)
+        mess.add_row("QI-10", "telecoms_bills", pos + 1, cn, note=f"credit note against {b['bill_id']}")
+        credits.append((b["account_no"], amount))
+    report["credit_notes"] = credits
+
+    # ---- QI-11 CRM / telecoms mismatches -----------------------------------------------------------------
+    rng = named_stream(seed, "mess.QI-11")
+    q11 = qi["QI-11_crm_telecoms_mismatch"]
+    tel_truth = context["telecoms_truth"]
+    acc_of = tel_truth.set_index("account_no").account_id
+    switch = set(context["shop_truth"].loc[context["shop_truth"].switches_to_second, "account_id"])
+    protected = at_risk | switch | set(customers.loc[customers.lookalike_group != "", "account_id"])
+    contracts = t["telecoms_contracts"].rows
+    removed = qi11_removed_accounts(cfg, context, seed)
+    removed_value = 0.0
+    for account_no in sorted(removed):
+        for pos in reversed([i for i, b in enumerate(t["telecoms_bills"].rows) if b["account_no"] == account_no]):
+            removed_value += t["telecoms_bills"].rows[pos]["total"]
+            mess.remove_row("QI-11", "telecoms_bills", pos, note=f"BL2 line sold but no telecoms account ({account_no})")
+        pos = next(i for i, r in enumerate(contracts) if r["account_no"] == account_no)
+        mess.remove_row("QI-11", "telecoms_contracts", pos, note=f"BL2 line sold but no telecoms account ({account_no})")
+    report["qi11_removed"] = [(a, acc_of[a]) for a in sorted(removed)]
+    report["qi11_removed_value"] = round(removed_value, 2)
+
+    bl2_customers = set(context["lines"].loc[context["lines"].business_line == "BL2", "account_id"])
+    pool = sorted(customers.loc[(customers.status == "active") & (customers.customer_since < cfg["window"]["start"]), "account_id"])
+    pool = [a for a in pool if a not in bl2_customers and a not in protected]
+    added_accounts = [str(x) for x in rng.choice(pool, size=q11["telecoms_account_without_bl2_line"], replace=False)]
+    tel = cfg["telecoms"]
+    lo_v, hi_v = cfg["contract_values"]["annual_value_range"]["BL2"]
+    s_lo, s_hi = q11["unlisted_account_start_range"]
+    next_tel = max(int(r["account_no"][4:]) for r in context["telecoms_contracts_clean"]) + 1
+    next_tc = len(context["telecoms_contracts_clean"]) + 1
+    added_value = 0.0
+    new_truth = []
+    next_bill = max(int(b["bill_id"][5:]) for b in context["telecoms_bills_clean"])
+    for acc in added_accounts:
+        annual = int(round(rng.uniform(lo_v, hi_v), -2))
+        rental = round(annual * (1 - tel["call_charge_share"]) / 12, 2)
+        start = s_lo + dt.timedelta(days=int(rng.integers((s_hi - s_lo).days + 1)))
+        account_no, ref = f"TEL-{next_tel}", f"TC-{next_tc:05d}"
+        row = {"contract_ref": ref, "account_no": account_no, "account_name": billing_style(names[acc]),
+               "service_type": str(rng.choice(tel["service_types"])), "monthly_charge": rental,
+               "start_date": start, "end_date": dt.date(start.year + 2, start.month, min(start.day, 28))}
+        while row["end_date"] <= as_of:
+            row["end_date"] = dt.date(row["end_date"].year + 2, row["end_date"].month, row["end_date"].day)
+        mess.add_row("QI-11", "telecoms_contracts", len(contracts), row,
+                     note=f"telecoms account with no BL2 line in the CRM ({acc})")
+        new_truth.append({"account_no": account_no, "account_id": acc, "line_id": ""})
+        month = dt.date(max(start, cfg["window"]["start"]).year, max(start, cfg["window"]["start"]).month, 1)
+        mean_calls = annual * tel["call_charge_share"] / 12
+        bills = t["telecoms_bills"].rows
+        while month <= as_of:
+            nxt = dt.date(month.year + (month.month == 12), month.month % 12 + 1, 1)
+            calls = round(float(rng.gamma(tel["call_charge_shape"], mean_calls / tel["call_charge_shape"])), 2)
+            first_month = start >= month and start < nxt
+            frac = ((nxt - start).days / (nxt - month).days) if first_month else 1.0
+            next_bill += 1
+            b = {"bill_id": f"BILL-{next_bill:06d}", "account_no": account_no,
+                 "bill_month": month.strftime("%Y-%m"), "bill_date": nxt - dt.timedelta(days=1),
+                 "line_rental": round(rental * frac, 2), "call_charges": round(calls * frac, 2)}
+            b["total"] = round(b["line_rental"] + b["call_charges"], 2)
+            added_value += b["total"]
+            mess.add_row("QI-11", "telecoms_bills", len(bills), b,
+                         note=f"bill for telecoms account with no BL2 line ({acc})")
+            month = nxt
+        next_tel += 1
+        next_tc += 1
+    report["qi11_added"] = [(r["account_no"], r["account_id"]) for r in new_truth]
+    report["qi11_added_value"] = round(added_value, 2)
+    context["telecoms_truth"] = pd.concat([tel_truth, pd.DataFrame(new_truth)], ignore_index=True)
+
+    lo_d, hi_d = q11["end_date_shift_days"]
+    remaining = [i for i, r in enumerate(contracts) if r["account_no"] in set(acc_of.index) - set(removed)
+                 and r["end_date"] is not None and acc_of[r["account_no"]] not in protected
+                 and customers.set_index("account_id").status[acc_of[r["account_no"]]] == "active"]
+    shifted = []
+    for i in _pick(rng, len(remaining), q11["end_date_mismatch_over_30_days"]):
+        pos = remaining[i]
+        days = int(rng.integers(lo_d, hi_d + 1)) * (1 if rng.random() < 0.5 else -1)
+        new_end = contracts[pos]["end_date"] + dt.timedelta(days=days)
+        mess.change("QI-11", "telecoms_contracts", pos, "end_date", new_end, note=f"end date differs from CRM by {days} days")
+        shifted.append((contracts[pos]["account_no"], days))
+    report["qi11_shifted"] = shifted
+    return report
+
+
 # --- reporting ----------------------------------------------------------------------------------
 
 def record_account(known: pd.DataFrame, context: dict) -> pd.Series:
@@ -383,6 +621,10 @@ def record_account(known: pd.DataFrame, context: dict) -> pd.Series:
     lines = context["lines"].set_index("line_id").account_id
     orders = {o["order_id"]: shop[o["customer_id"]] for o in context["payload"]["orders"]}
     contracts = {ref: tel[no] for ref, no in context["contract_account"].items()}
+    added = known[(known.table == "telecoms_contracts") & (known.op == "add_row")]
+    for e in added.itertuples():
+        row = decode(e.new_json)
+        contracts[row["contract_ref"]] = tel.get(row["account_no"], "")
 
     def acc(e) -> str:
         k = e.record_key
@@ -467,15 +709,73 @@ def counts_table(cfg, known: pd.DataFrame, tables_clean: dict[str, Table]) -> pd
         ("QI-06", "category variants", f"{qi['QI-06_category_variants_rate']:.0%} of {n_hd}",
          round(qi["QI-06_category_variants_rate"] * n_hd), c("QI-06", "helpdesk")),
     ]
+    n_lines_with_renewal = sum(1 for r in tables_clean["crm_lines"].rows if r["renewal_date"] is not None)
+    n_delivered = sum(1 for o in tables_clean["shop_orders"].rows if o["delivered_date"] is not None)
+    n_responded = sum(1 for r in tables_clean["helpdesk"].rows if r["first_responded_at"])
+    n_linked = sum(1 for r in tables_clean["helpdesk"].rows if r["kb_article_id"])
+    q8, q10, q11 = qi["QI-08_missing_values"], qi["QI-10_negative_or_excluded_amounts"], qi["QI-11_crm_telecoms_mismatch"]
+    rows += [
+        ("QI-07", "tickets with personal data", f"{qi['QI-07_pii_in_ticket_text_rate']:.0%} of {n_hd}",
+         round(qi["QI-07_pii_in_ticket_text_rate"] * n_hd), c("QI-07", "helpdesk", op="change")),
+        ("QI-07", "personal-data spans recorded", "name / email / phone", "-", c("QI-07", op="pii_span")),
+        ("QI-08", "renewal dates removed", f"{q8['crm_renewal_date_rate']:.0%} of {n_lines_with_renewal}",
+         round(q8["crm_renewal_date_rate"] * n_lines_with_renewal), c("QI-08", "crm_lines")),
+        ("QI-08", "delivered dates removed", f"{q8['shop_delivered_date_rate']:.0%} of {n_delivered}",
+         round(q8["shop_delivered_date_rate"] * n_delivered), c("QI-08", "shop_orders")),
+        ("QI-08", "first-response times removed", f"{q8['ticket_first_responded_at_rate']:.0%} of {n_responded}",
+         round(q8["ticket_first_responded_at_rate"] * n_responded), c("QI-08", "helpdesk", "first_responded_at")),
+        ("QI-08", "KB links removed", f"{q8['ticket_kb_link_missing_when_used_rate']:.0%} of {n_linked}",
+         round(q8["ticket_kb_link_missing_when_used_rate"] * n_linked), c("QI-08", "helpdesk", "kb_article_id")),
+        ("QI-09", "links to superseded article", "count (step 1.8)", qi["QI-09_tickets_linking_superseded_article"],
+         qi["QI-09_tickets_linking_superseded_article"]),
+        ("QI-10", "cancelled orders added", f"{q10['order_cancelled_rate']:.0%} of {n_orders}",
+         round(q10["order_cancelled_rate"] * n_orders), c("QI-10", "shop_orders", note="cancelled")),
+        ("QI-10", "refunded orders added", f"{q10['order_refunded_rate']:.0%} of {n_orders}",
+         round(q10["order_refunded_rate"] * n_orders), c("QI-10", "shop_orders", note="refunded")),
+        ("QI-10", "credit notes added", f"{q10['telecoms_credit_note_rate']:.0%} of {n_bills}",
+         round(q10["telecoms_credit_note_rate"] * n_bills), c("QI-10", "telecoms_bills")),
+        ("QI-11", "BL2 lines with no telecoms account", "count", q11["bl2_line_without_telecoms_account"],
+         c("QI-11", "telecoms_contracts", op="remove_row")),
+        ("QI-11", "telecoms accounts with no BL2 line", "count", q11["telecoms_account_without_bl2_line"],
+         c("QI-11", "telecoms_contracts", op="add_row")),
+        ("QI-11", "end dates moved > 30 days", "count", q11["end_date_mismatch_over_30_days"],
+         c("QI-11", "telecoms_contracts", "end_date")),
+    ]
     return pd.DataFrame(rows, columns=["qi", "what", "config", "target", "actual"])
 
 
+def revenue_check(clean: dict[str, Table], messy: dict[str, Table], known: pd.DataFrame) -> pd.DataFrame:
+    """BL2 and BL5 revenue: clean truth, messy data summed as it comes, and correctly cleaned."""
+    cb = pd.DataFrame(clean["telecoms_bills"].rows)
+    mb = pd.DataFrame(messy["telecoms_bills"].rows)
+    co = pd.DataFrame(clean["shop_orders"].rows)
+    mo = pd.DataFrame(messy["shop_orders"].rows)
+    dup_orders = set(known[(known.qi == "QI-04") & (known.table == "shop_orders")].record_key)
+    rows = [
+        ("BL2", "clean (before any mess)", cb.total.sum()),
+        ("BL2", "messy, summed as exported", mb.total.sum()),
+        ("BL2", "  of which duplicate bill rows", mb.total.sum() - mb.drop_duplicates().total.sum()),
+        ("BL2", "  of which credit notes", mb[mb.bill_id.str.startswith("CN-")].total.sum()),
+        ("BL2", "messy, correctly cleaned (duplicates removed, credits applied)", mb.drop_duplicates().total.sum()),
+        ("BL5", "clean (before any mess)", co.order_total.sum()),
+        ("BL5", "messy, summed as exported", mo.order_total.sum()),
+        ("BL5", "  of which cancelled", mo[mo.status == "cancelled"].order_total.sum()),
+        ("BL5", "  of which refunded", mo[mo.status == "refunded"].order_total.sum()),
+        ("BL5", "  of which duplicate orders", mo[mo.order_id.isin(dup_orders)].order_total.sum()),
+        ("BL5", "messy, correctly cleaned",
+         mo[~mo.order_id.isin(dup_orders) & ~mo.status.isin(["cancelled", "refunded"])].order_total.sum()),
+    ]
+    return pd.DataFrame(rows, columns=["line", "view", "revenue"])
+
+
 def build(cfg, raw_dir: Path = RAW_DIR, truth_dir: Path = GROUND_TRUTH_DIR, seed: int | None = None,
-          parts: tuple[str, ...] = ("A",)):
+          parts: tuple[str, ...] = ("A", "B")):
     tables, context = clean_tables(cfg, seed)
     clean = copy.deepcopy(tables)
     mess = Mess(tables)
     report = apply_part_a(cfg, mess, context, seed) if "A" in parts else {}
+    if "B" in parts:
+        report.update(apply_part_b(cfg, mess, context, seed))
     known = mess.known_issues()
     write_tables(mess.tables, context, raw_dir)
     write_ground_truth(cfg, truth_dir, seed=seed)
@@ -496,9 +796,22 @@ def main() -> None:
     print("\nActual counts against the config:")
     print(counts_table(cfg, known, clean).to_string(index=False))
     print(f"\nCRM non-ISO dates: {report['crm_non_iso_dates']} cells; ambiguous (day <= 12): "
-          f"{report['crm_ambiguous_share']:.0%} (config expects about "
-          f"{cfg['quality_issues']['QI-03_mixed_dates']['ambiguous_day_month_share']:.0%})")
+          f"{report['crm_ambiguous_share']:.0%} "
+          "(natural rate; not set in the config)")
     print(f"CRM duplicates (raw ID -> real account): {report['crm_duplicates']}")
+    print(f"Personal-data spans inserted (QI-07): {report['pii_counts']}")
+    print(f"Closed tickets losing first_responded_at (QI-08): {report['closed_tickets_losing_first_response']} of "
+          f"{report['closed_tickets']}; response SLA measurable on "
+          f"{report['closed_tickets'] - report['closed_tickets_losing_first_response']}")
+    print(f"QI-11 removed accounts (BL2 line, no telecoms account): {report['qi11_removed']} "
+          f"(bills removed £{report['qi11_removed_value']:,.2f})")
+    print(f"QI-11 added accounts (telecoms account, no BL2 line): {report['qi11_added']} "
+          f"(bills added £{report['qi11_added_value']:,.2f})")
+    print(f"QI-11 end dates moved: {report['qi11_shifted']}")
+    print(f"QI-10 credit notes: {len(report['credit_notes'])}, total £{sum(a for _, a in report['credit_notes']):,.2f}")
+    print("\nRevenue (18 months):")
+    rc = revenue_check(clean, mess.tables, known)
+    print(rc.assign(revenue=rc.revenue.map("£{:,.2f}".format)).to_string(index=False))
     print(f"Name variants rejected because they matched another customer's name: "
           f"{len(report['collisions_rejected'])} {report['collisions_rejected']}")
 
@@ -507,6 +820,37 @@ def main() -> None:
     look = customers[customers.lookalike_group != ""].set_index("account_id").lookalike_group
     switch = set(context["shop_truth"].loc[context["shop_truth"].switches_to_second, "account_id"])
     known = known.assign(account_id=record_account(known, context))
+    from generator.patterns import compare
+    pat = compare(cfg, clean, mess.tables, known, context)
+    print("\nBQ-06 pattern (ticket rise AND a spend fall), active customers flagged:")
+    for mode in ("clean", "cleaned", "naive"):
+        print(f"  {mode:8s}: {len(pat['flagged'][mode])} {pat['flagged'][mode]}")
+    print("At-risk customers, Jul-Sep / Apr-Jun ratios before (naive) and after (cleaned) cleaning:")
+    print(pat["at_risk_table"].to_string())
+    fl = pat["flags"]
+    healthy = set(customers.loc[~customers.at_risk & (customers.status == "active"), "account_id"])
+    for mode in ("cleaned", "naive"):
+        f = fl[mode]
+        h = f[f.index.isin(healthy)]
+        print(f"  {mode}: healthy customers with a ticket rise {int(h.ticket_rise.sum())}, BL2 fall "
+              f"{int(h.bl2_fall.sum())}, shop fall {int(h.shop_fall.sum())}")
+    for acc in sorted(switch):
+        print(f"  account-switch trap {acc}: naive shop fall {bool(fl['naive'].shop_fall.get(acc, False))}, "
+              f"cleaned shop fall {bool(fl['cleaned'].shop_fall.get(acc, False))}")
+    print(f"  naive shop falls on accounts not in the clean customer list (CRM duplicates): "
+          f"{sorted(set(fl['naive'].index[fl['naive'].shop_fall]) - set(customers.account_id))}")
+
+    # duplicate orders on at-risk customers: does removing them change anything?
+    dups = known[(known.qi == "QI-04") & (known.table == "shop_orders")]
+    shop_acc = context["shop_truth"].set_index("shop_customer_id").account_id
+    print("Duplicate orders on at-risk customers:")
+    for e in dups.itertuples():
+        o = decode(e.new_json)
+        acc = shop_acc[o["customer_id"]]
+        if acc in risk:
+            print(f"  {acc}: {o['order_id']} placed {o['order_date']} (£{o['order_total']:.2f}), duplicate of "
+                  f"{e.note.split()[-1]}; quarter {'Jul-Sep' if o['order_date'][:7] >= '2026-07' else 'Apr-Jun' if o['order_date'][:7] >= '2026-04' else 'outside both'}")
+
     print("\nInjected problems touching planted cases:")
     for label, ids in (("at-risk", sorted(risk)), ("look-alike", sorted(look.index)),
                        ("account-switch trap", sorted(switch))):

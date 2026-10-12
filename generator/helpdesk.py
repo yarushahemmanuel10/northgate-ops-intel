@@ -28,7 +28,7 @@ from generator.streams import named_stream
 from generator.ticket_text import TOPICS, ticket_text
 
 ROOT = Path(__file__).resolve().parents[1]
-RAW_DIR = ROOT / "data" / "raw"
+RAW_DIR = ROOT / "data" / "clean"   # clean output; only generator.messiness writes data/raw (D-015)
 RAW_COLUMNS = ["ticket_id", "opened_at", "first_responded_at", "closed_at", "priority", "category",
                "customer_name", "agent", "description", "resolution_notes", "kb_article_id"]
 TIME_FMT = "%Y-%m-%d %H:%M"

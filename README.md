@@ -19,3 +19,35 @@ Status: in progress. Full documentation will be added in Phase 7.
 | [`docs/03_requirements.md`](docs/03_requirements.md) | 16 business questions (BQ-01 to BQ-16) with acceptance tests, out-of-scope list, traceability matrix |
 
 Design decisions are recorded in [`DECISIONS.md`](DECISIONS.md).
+
+## Building the synthetic data
+
+```
+uv sync
+uv run python -m generator.run      # builds data/clean, data/raw and data/ground_truth from scratch
+uv run pytest -q
+```
+
+`data/raw/` holds the messy files the platform ingests and is written only by
+`generator.run` (through `generator.messiness`). Single generators such as
+`uv run python -m generator.helpdesk` write clean files to `data/clean/` for inspection
+and never touch `data/raw/`. The mock shop API serves `data/raw/shop_orders.json`:
+`uv run uvicorn shop_api.app:app --host 127.0.0.1 --port 8765`.
+
+## What is committed and what is generated
+
+<!-- files-table:start -->
+| Path | Committed? | What it is | Produced by |
+|---|---|---|---|
+| `config/generator.yaml` | Yes | Every generator setting (seed, volumes, rates) | Hand-written |
+| `docs/`, `DECISIONS.md`, `README.md` | Yes | Business understanding, decisions, this file | Hand-written (this table by `generator.run`) |
+| `generator/`, `shop_api/`, `tests/` | Yes | Code and tests | Hand-written |
+| `knowledge_base/*.md`, `knowledge_base/_meta.yaml` | Yes | 50 KB documents and their ground truth | Hand-written (D-014) |
+| `pyproject.toml`, `uv.lock`, `.python-version` | Yes | Exact dependency versions (D-005) | `uv` |
+| `data/clean/` | No | Clean sources before any quality problems | `python -m generator.run` (step 1) |
+| `data/raw/` | No | Messy sources the platform ingests | `python -m generator.run` (step 2) |
+| `data/ground_truth/` | No | Answer keys: true accounts, known issues, KB links | `python -m generator.run` (step 2) |
+| `.env` | No | API key (never committed) | You |
+
+Everything under `data/` is reproduced exactly from the seed in `config/generator.yaml`.
+<!-- files-table:end -->

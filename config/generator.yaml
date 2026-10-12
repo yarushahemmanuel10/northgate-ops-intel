@@ -207,7 +207,8 @@ quality_issues:
     crm: 0.30
     telecoms_bill_month: 0.25
     helpdesk: 0.05
-    ambiguous_day_month_share: 0.30   # expected share of non-ISO dates with day <= 12 (reported, not forced)
+    # The share of non-ISO dates that are ambiguous (day <= 12) is not set here; it is the
+    # natural rate, reported by generator.messiness.
     # One documented convention per source, so non-ISO dates can be parsed by rule (02 §1.7):
     # CRM: UK day-first, as dd/mm/yyyy or "d Mon yyyy"; helpdesk: dd/mm/yyyy HH:MM;
     # telecoms bill month: Mon-yy or mm/yyyy.
@@ -236,6 +237,9 @@ quality_issues:
     Security: [security, Cyber, Virus]
     Backup & Restore: [Backup, Backups, Restore]
   QI-07_pii_in_ticket_text_rate: 0.25
+  # Personal data is fictional and unreal by construction: emails use the reserved .example
+  # suffix; phone numbers come only from Ofcom's ranges reserved for drama.
+  QI-07_phone_prefixes: ["07700 900", "01632 960"]
   QI-08_missing_values:
     crm_renewal_date_rate: 0.05
     shop_delivered_date_rate: 0.03
@@ -246,7 +250,10 @@ quality_issues:
     order_cancelled_rate: 0.04
     order_refunded_rate: 0.02
     telecoms_credit_note_rate: 0.01
+    credit_note_share_of_rental: [0.1, 0.5]   # credit as a share of that month's line rental
   QI-11_crm_telecoms_mismatch:
     bl2_line_without_telecoms_account: 3        # count
     telecoms_account_without_bl2_line: 2        # count
     end_date_mismatch_over_30_days: 5           # count (BQ-13 list a)
+    end_date_shift_days: [31, 120]
+    unlisted_account_start_range: [2024-01-01, 2025-12-31]   # telecoms accounts with no CRM line

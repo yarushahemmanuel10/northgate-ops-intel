@@ -26,7 +26,7 @@ from generator.config import load_config
 from generator.customers import SYNTHETIC_HEADER, generate, make_rngs
 
 ROOT = Path(__file__).resolve().parents[1]
-RAW_DIR = ROOT / "data" / "raw"
+RAW_DIR = ROOT / "data" / "clean"   # clean output; only generator.messiness writes data/raw (D-015)
 WORKBOOK_NAME = "crm_accounts.xlsx"
 
 # Ground-truth column -> header as typed in the CRM workbook.
