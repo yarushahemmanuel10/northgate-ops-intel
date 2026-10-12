@@ -175,3 +175,103 @@ workbook to see what the customer pays for.
 **Data quality problems created here:** customer names typed freely by agents, vague
 descriptions, inconsistent categories, personal data (names, emails, phone numbers) in
 free text, and missing or wrong links to knowledge base articles.
+
+### 2.3 Order to delivery (online shop)
+
+```mermaid
+flowchart TD
+    A[Customer places order in online shop] --> B{Item in stock at distributor?}
+    B -->|Yes| C[Procurement confirms order]
+    B -->|No| D[Customer told of delay or offered alternative]
+    D --> C
+    C --> E[Distributor ships to Northgate or direct to customer]
+    E --> F{Needs setup by engineer?}
+    F -->|Yes| G[Helpdesk ticket raised for device setup]
+    F -->|No| H[Delivered to customer]
+    G --> H
+    H --> I[Order marked complete]
+    I --> J{Problem reported?}
+    J -->|Return or fault| K[Return processed, order marked refunded]
+    J -->|No| L[Order closed]
+```
+
+**Narrative.** Customers order equipment through the online shop using their shop account.
+Northgate holds little stock; procurement places each order with a distributor, which ships
+either to the office or straight to the customer. Laptops and network kit often need setup,
+so procurement raises a helpdesk ticket for an engineer. The shop records order status,
+lines, totals and the delivery date. Returns and faults are processed in the shop and
+sometimes also generate a support ticket.
+
+**Systems touched:** online shop, helpdesk tool (setup and fault tickets).
+
+| Decision | Who decides | Data needed | How it is done today |
+|---|---|---|---|
+| How much is each customer spending on equipment, and is it rising or falling? | Account manager | Order totals per customer per month | Shop admin report, but shop accounts don't match CRM names |
+| Are orders being delivered on time? | Procurement, operations director | Order date, promised date, delivery date, status | Not measured |
+| Which products cause the most faults or setup tickets? | Procurement, service desk lead | Order lines linked to tickets | Not possible; no link between orders and tickets |
+
+**Data quality problems created here:** shop account names that differ from CRM names,
+orders with missing delivery dates, cancelled or refunded orders that still appear in
+revenue totals unless filtered, and occasional duplicate orders from double submission.
+
+### 2.4 Contract renewal
+
+```mermaid
+flowchart TD
+    A[Renewal date approaching] --> B[Account manager checks CRM workbook]
+    B --> C[Account manager gathers customer history]
+    C --> D{Customer healthy?}
+    D -->|Yes| E[Renewal offer sent, possibly with upsell]
+    D -->|At risk| F[Retention call with service desk lead]
+    F --> G[Service improvement plan agreed]
+    G --> E
+    E --> H{Customer response}
+    H -->|Renews| I[New dates and value updated in CRM]
+    H -->|Renegotiates| J[Revised terms agreed]
+    H -->|Leaves| K[Account closed, services ceased]
+    J --> I
+```
+
+**Narrative.** Support and telecoms contracts renew annually or every two to three years.
+In theory, the account manager reviews the customer 90 days before renewal. In practice,
+renewals are often noticed late because the dates sit in a workbook with no reminders.
+Before the conversation, the account manager tries to build a picture of the customer:
+how many tickets they raised, whether SLAs were met, and whether their spend is growing or
+shrinking. That picture comes from four systems that don't share customer IDs, so it is
+assembled by hand or skipped.
+
+**Systems touched:** CRM workbook, helpdesk tool, telecoms billing system, online shop.
+
+| Decision | Who decides | Data needed | How it is done today |
+|---|---|---|---|
+| Which contracts renew in the next 90 days? | Account manager, directors | Renewal dates and contract values | Sorting the workbook by hand, when someone remembers |
+| Is this customer at risk of leaving? | Account manager | Ticket trend, SLA breaches on their tickets, spend trend across telecoms and shop | Gut feel; no combined view |
+| What should we offer at renewal? | Account manager | Business lines taken, spend by line, service history | Based on what the account manager remembers |
+| Where should retention effort go first? | Operations director | At-risk customers ranked by contract value | Not done systematically |
+
+**Data quality problems created here:** missing or out-of-date renewal dates, contract
+values typed with inconsistent formats, renewal dates in mixed date formats, and
+telecoms contract end dates that don't agree with the CRM workbook.
+
+## 3. Summary of decisions the platform must support
+
+| Process | Decision | Platform layer that should support it |
+|---|---|---|
+| Onboarding | Is onboarding on track? | Layer 3 (dashboard), Layer 5 (assistant) |
+| Onboarding | Are we billing for everything sold? | Layer 1 (matching), Layer 2 (unified data) |
+| Onboarding | Which customers could buy more? | Layer 2, Layer 3 |
+| Tickets | Which tickets are about to breach SLA? | Layer 4 (alerts) |
+| Tickets | Are we meeting SLA by priority? | Layer 3 |
+| Tickets | Which customers have unusual ticket volume? | Layer 3 |
+| Tickets | Is the knowledge base helping? | Layer 3, Layer 5 |
+| Tickets | How should an agent handle this problem? | Layer 5 (knowledge base assistant) |
+| Orders | How much is each customer spending, and which way is it trending? | Layer 2, Layer 3 |
+| Orders | Are orders delivered on time? | Layer 3 |
+| Orders | Which products cause faults? | Out of scope for the prototype (needs order–ticket links) |
+| Renewal | Which contracts renew in the next 90 days? | Layer 3, Layer 4 (renewal alert) |
+| Renewal | Is this customer at risk? | Layer 3 (at-risk score), Layer 4, Layer 5 |
+| Renewal | What to offer at renewal? | Layer 5 (assistant over unified data) |
+| Renewal | Where should retention effort go first? | Layer 3 |
+
+These decisions are turned into numbered business questions, with owners and source
+systems, in `03_requirements.md`.
