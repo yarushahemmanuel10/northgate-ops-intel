@@ -166,14 +166,23 @@ def at_risk_coverage(customers: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def _iso(d) -> str:
+    """Dates as ISO text; values already turned into text (e.g. by the mess step) pass through."""
+    if d is None:
+        return ""
+    return d.isoformat() if hasattr(d, "isoformat") else str(d)
+
+
 def write(raw_contracts, raw_bills, truth, raw_dir: Path = RAW_DIR, truth_dir: Path = GROUND_TRUTH_DIR):
-    _write_csv(raw_contracts.assign(
-        start_date=raw_contracts.start_date.map(lambda d: d.isoformat()),
-        end_date=raw_contracts.end_date.map(lambda d: "" if d is None else d.isoformat())),
-        raw_dir / "telecoms_contracts.csv")
-    _write_csv(raw_bills.assign(bill_date=raw_bills.bill_date.map(lambda d: d.isoformat())),
-               raw_dir / "telecoms_bills.csv")
+    write_raw(raw_contracts, raw_bills, raw_dir)
     _write_csv(truth, truth_dir / "telecoms_accounts.csv")
+
+
+def write_raw(raw_contracts, raw_bills, raw_dir: Path = RAW_DIR):
+    _write_csv(raw_contracts.assign(start_date=raw_contracts.start_date.map(_iso),
+                                    end_date=raw_contracts.end_date.map(_iso)),
+               raw_dir / "telecoms_contracts.csv")
+    _write_csv(raw_bills.assign(bill_date=raw_bills.bill_date.map(_iso)), raw_dir / "telecoms_bills.csv")
 
 
 def build(cfg, raw_dir: Path = RAW_DIR, truth_dir: Path = GROUND_TRUTH_DIR, seed: int | None = None):

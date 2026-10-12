@@ -198,23 +198,43 @@ quality_issues:
     # step 1.9 applies before the system style (D-012).
     telecoms_extra: 0.15
     variant_weights: {abbreviation: 0.25, lowercase: 0.20, drop_suffix: 0.25, typo: 0.20, uppercase_truncate: 0.10}
+    # Human variants applied before the billing system's own style.
+    telecoms_variant_kinds: [abbreviation, typo]
+    # Shop names are set once per shop account at sign-up, so the shop rate applies to
+    # shop accounts, not orders. Every second shop account gets a variant name.
   QI-02_no_shared_id: true        # structural: each system issues its own IDs
   QI-03_mixed_dates:              # share of date values not in ISO format
     crm: 0.30
     telecoms_bill_month: 0.25
     helpdesk: 0.05
-    ambiguous_day_month_share: 0.30
+    ambiguous_day_month_share: 0.30   # expected share of non-ISO dates with day <= 12 (reported, not forced)
+    # One documented convention per source, so non-ISO dates can be parsed by rule (02 §1.7):
+    # CRM: UK day-first, as dd/mm/yyyy or "d Mon yyyy"; helpdesk: dd/mm/yyyy HH:MM;
+    # telecoms bill month: Mon-yy or mm/yyyy.
   QI-04_duplicates:
     crm_duplicate_accounts: 4     # count
     shop_duplicate_accounts: 8    # count of customers with a second shop account
     shop_duplicate_order_rate: 0.01
     telecoms_duplicate_bill_rate: 0.005
+    crm_duplicate_name_kinds: [lowercase, drop_suffix, typo]   # how the re-added account was typed
+    duplicate_order_delay_minutes: [1, 5]
   QI-05_invalid_values:
     ticket_closed_before_opened_rate: 0.005
     ticket_invalid_priority_rate: 0.003
     order_nonpositive_quantity_rate: 0.003
     crm_contract_value_nonstandard_rate: 0.40   # "£12,000", "12k" etc.
+    invalid_priority_values: [P5, Urgent, N/A]
+    nonpositive_quantities: [0, -1]
   QI-06_category_variants_rate: 0.30
+  QI-06_category_variants:         # how agents type each canonical category
+    Email: [email, E-mail, Outlook, Mail]
+    Accounts & Access: [Accounts, Access, Account/Access, Passwords]
+    Hardware: [hardware, H/W, Hardware fault]
+    Printing: [Printer, Printers, printing]
+    Network: [Networking, Wi-Fi/Network, network]
+    Software: [software, Applications, Apps]
+    Security: [security, Cyber, Virus]
+    Backup & Restore: [Backup, Backups, Restore]
   QI-07_pii_in_ticket_text_rate: 0.25
   QI-08_missing_values:
     crm_renewal_date_rate: 0.05

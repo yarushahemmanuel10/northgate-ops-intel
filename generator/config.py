@@ -162,12 +162,16 @@ def validate(cfg: dict[str, Any]) -> None:
 
     qi = cfg["quality_issues"]
     for site, s in qi["QI-01_name_variants"].items():
-        if site != "variant_weights":
+        if isinstance(s, (int, float)):
             _check_share(f"QI-01_name_variants.{site}", s)
     _check_sums_to_one("QI-01_name_variants.variant_weights",
                        qi["QI-01_name_variants"]["variant_weights"])
     for site, s in qi["QI-03_mixed_dates"].items():
-        _check_share(f"QI-03_mixed_dates.{site}", s)
+        if isinstance(s, (int, float)):
+            _check_share(f"QI-03_mixed_dates.{site}", s)
+    from generator.ticket_text import CATEGORIES
+    if sorted(qi["QI-06_category_variants"]) != CATEGORIES:
+        raise ConfigError("QI-06_category_variants must list every ticket category")
     _walk_rates("quality_issues", qi)
     if qi["QI-09_tickets_linking_superseded_article"] > v["tickets"]:
         raise ConfigError("QI-09 count cannot exceed tickets")

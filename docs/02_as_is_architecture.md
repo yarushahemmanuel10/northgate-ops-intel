@@ -131,6 +131,22 @@ The Phase 1 generator injects each problem above as a deliberate defect and reco
 injected instance in `data/ground_truth/known_issues.csv`, so the platform's handling of
 it can be measured.
 
+**Date conventions for non-ISO values (QI-03).** Each source writes its non-ISO dates in one
+convention, so every date can be parsed by rule and none has to be guessed:
+
+| Source | Non-ISO formats | Rule for ambiguous values such as 03/04/2025 |
+|---|---|---|
+| CRM workbook | `dd/mm/yyyy` or `d Mon yyyy` (e.g. `3 Apr 2025`) | UK day-first: 3 April 2025 |
+| Helpdesk export | `dd/mm/yyyy HH:MM` | UK day-first |
+| Telecoms bills (`bill_month`) | `Mon-yy` (e.g. `Apr-25`) or `mm/yyyy` | Never ambiguous |
+
+**Shop names (QI-01)** are set once per shop account at sign-up, so the 50% rate applies to
+shop accounts, and every order from a renamed account carries the same variant. All eight
+second shop accounts have a variant name.
+
+**CRM duplicates (QI-04)** are new rows with their own `ACC-` IDs (ACC-0121 onwards);
+`data/ground_truth/crm_account_map.csv` maps every raw account ID to the real account.
+
 | ID | Problem | Systems | How Layer 1 is expected to handle it |
 |---|---|---|---|
 | QI-01 | Same customer under different names | All four data systems | Entity resolution with review queue |
