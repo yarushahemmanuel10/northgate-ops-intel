@@ -398,3 +398,44 @@ tables:
       contract_start_flag: {description: "Why contract_start is unusable, if it is", type: text, personal_data: false, bqs: [BQ-14]}
       renewal_date_flag: {description: "Why renewal_date is empty (e.g. MISSING-003)", type: text, personal_data: false, bqs: [BQ-05, BQ-14]}
       end_date_flag: {description: "Why end_date is unusable, if it is", type: text, personal_data: false, bqs: [BQ-14]}
+
+  # ---- revenue views (step 3.4, D-026) --------------------------------------------------------
+  v_window_month:
+    layer: warehouse
+    grain: one row per month of the data window (April 2025 - September 2026)
+    lineage: []
+    columns:
+      month: {description: "First day of the month", type: date, personal_data: false, bqs: [BQ-07]}
+
+  v_contract_revenue_month:
+    layer: warehouse
+    grain: one row per modelled contract line (BL1, BL3, BL4) per active month of the data window
+    lineage: []
+    columns:
+      line_id: {description: "Contract line", type: code, personal_data: false, bqs: [BQ-07, BQ-14]}
+      customer_id: {description: "Canonical customer", type: code, personal_data: false, bqs: [BQ-07]}
+      business_line: {description: "BL1, BL3 or BL4", type: code, personal_data: false, bqs: [BQ-07]}
+      month: {description: "Active month (overlaps any part of the month, D-026)", type: date, personal_data: false, bqs: [BQ-07]}
+      revenue: {description: "Annual value / 12, GBP excluding VAT (modelled)", type: decimal, personal_data: false, bqs: [BQ-07]}
+
+  v_revenue:
+    layer: warehouse
+    grain: one row per customer, business line and month with revenue (Unknown customer included)
+    lineage: []
+    columns:
+      customer_id: {description: "Canonical customer, or UNKNOWN for queued and unmatched records", type: code, personal_data: false, bqs: [BQ-06, BQ-07, BQ-08]}
+      business_line: {description: "BL1-BL5", type: code, personal_data: false, bqs: [BQ-07, BQ-08]}
+      month: {description: "First day of the month the revenue belongs to", type: date, personal_data: false, bqs: [BQ-06, BQ-07]}
+      year_month: {description: "YYYY-MM", type: code, personal_data: false, bqs: [BQ-07, BQ-15]}
+      revenue: {description: "Revenue, GBP excluding VAT, as defined in metrics.yaml revenue_by_line (unrounded)", type: decimal, personal_data: false, bqs: [BQ-06, BQ-07, BQ-08, BQ-15]}
+      revenue_basis: {description: "'modelled' (BL1, BL3, BL4: from contract values) or 'measured' (BL2 bills, BL5 orders)", type: code, personal_data: false, bqs: [BQ-07]}
+      records: {description: "Source records behind the figure (contract-line months, bills or orders)", type: integer, personal_data: false, bqs: [BQ-08, BQ-14]}
+
+  v_revenue_excluded:
+    layer: warehouse
+    grain: one row per business line and reason where revenue records are left out because a value was flagged unusable (empty when none)
+    lineage: []
+    columns:
+      business_line: {description: "Business line affected", type: code, personal_data: false, bqs: [BQ-07, BQ-14]}
+      reason: {description: "Which value is unusable", type: text, personal_data: false, bqs: [BQ-14]}
+      records: {description: "Number of records left out", type: integer, personal_data: false, bqs: [BQ-14]}

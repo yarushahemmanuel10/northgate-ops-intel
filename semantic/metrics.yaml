@@ -106,13 +106,16 @@ metrics:
     name: Revenue by business line
     definition: >-
       Each business line has exactly one revenue source, so no amount is counted twice
-      (D-003). BL1, BL3 and BL4: CRM contract lines, annual value ÷ 12 for each month the
-      line is active, labelled "modelled". BL2: telecoms bills only, assigned to the month
+      (D-003). BL1, BL3 and BL4: CRM contract lines, annual value ÷ 12 for each month of the
+      data window the line is active, labelled "modelled". A month counts in full when the
+      line overlaps any part of it, so a start, end or closing date in the middle of a month
+      counts that whole month (D-026). BL2: telecoms bills only, assigned to the month
       in bill_month, with re-run duplicate rows removed; the CRM BL2 value is used only for
       the BQ-13 check, never added. BL5: shop orders only, assigned to the month of
       order_date. revenue_treatment decides what counts: 'include' is counted; 'exclude'
       (cancelled and refunded orders) is not counted; 'negative' (credit notes) is counted
-      as a negative amount that reduces revenue. All amounts exclude VAT (D-012). Revenue
+      as a negative amount that reduces revenue: credit-note totals are already negative, so
+      they are added as they are, never subtracted. All amounts exclude VAT (D-012). Revenue
       is attributed to a customer through the crosswalk; records queued or unmatched there
       are reported as unattributed, not dropped.
     numbers:

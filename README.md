@@ -58,6 +58,7 @@ uv run python -m eval.resolution_eval report   # held-out scores, named cases, r
 uv run python -m pipeline.warehouse.dedup      # duplicate orders and bills marked in data/warehouse/ (D-024)
 uv run python -m eval.dedup_eval               # scores by time window, genuine repeats, BL5 before and after
 uv run python -m pipeline.warehouse.load       # star schema in data/warehouse/northgate.duckdb (D-025)
+uv run python -m eval.reconciliation           # all five lines against the generator's figures (D-026)
 ```
 
 ## What is committed and what is generated

@@ -247,3 +247,26 @@ One entry per design choice: the choice, the alternatives considered, and the re
 - **Row counts:** facts equal validated rows minus marked duplicates and nothing else: tickets 1,535; orders 3,228 − 30 = 3,198; order lines 4,826 − 47 (the lines of duplicate orders) = 4,779; bills 899 − 5 = 894; contract lines 225 (tested).
 - **Line-level findings:** validation records order-line findings against the order ID with the line number in the text ("line 2: ..."); the load reads the line number from there. Fragile if the wording changes, but tested through the QTY-001 checks.
 - **Not loaded yet:** telecoms contracts and knowledge base documents (needed for BQ-13 and BQ-11/12 in later phases); they stay in `data/validated/`.
+
+## D-026: Revenue view and reconciliation of all five lines (step 3.4)
+- **`v_revenue`** (one row per customer, business line and month; built in `pipeline/warehouse/views.py` with every warehouse load) follows `metrics.yaml` revenue_by_line exactly:
+  - **BL1, BL3, BL4 (modelled):** annual value ÷ 12 for each month of the data window (April 2025 – September 2026) in which the contract line is active, through `v_contract_revenue_month` (one row per line per active month, for audit).
+  - **Active month, same rule as the D-007 revenue check:** a month counts in full when the line overlaps any part of it: `contract_start` on or before the month's last day, and `end_date` empty or on or after the month's first day. So a start, end or closing date in the middle of a month counts that whole month; a line ending on 20 July 2025 earns all of July. Months outside the window never count. Closing a customer has no separate effect: its lines carry the end date. Alternatives considered: pro-rating part months by days (more exact, but would not match the D-007 check the generator was calibrated with); counting only months fully covered (would drop revenue in the start and end months).
+  - **BL2 (measured):** bills not marked `exclude`, assigned to `bill_month`. Credit-note totals are already negative in `fact_bill` (−£2,419.37 over 9 notes), so they are **added as they are**; a test checks BL2 equals include plus negative, and not include minus negative.
+  - **BL5 (measured):** orders with `revenue_treatment` include, assigned to the order month. Cancelled and refunded orders are left out; marked duplicates are not in the facts.
+  - Every row has `revenue_basis` 'modelled' or 'measured'. Queued and unmatched records are on the Unknown customer, so company totals are complete.
+  - `revenue` is unrounded (DOUBLE), because a modelled month is a fraction (£10,600 ÷ 12 = £883.33…); rounding each month to pence would make totals drift. Figures are rounded only when reported.
+- **`v_revenue_excluded`** lists records left out because a needed value was flagged unusable (contract value or start date; bill total or month; included order total or date), by line. On the project data it is empty: nothing is lost this way. A test empties one contract value in a copy of the database and checks the view reports it and BL1 falls by exactly that line's revenue.
+- **Reconciliation** (`python -m eval.reconciliation`, evaluation code only):
+
+| Line | Basis | Warehouse | Reference | Difference | Reference |
+|---|---|---|---|---|---|
+| BL1 | modelled | £1,685,375.00 | £1,685,375 | £0.00 | generator D-007 check on clean contract lines |
+| BL2 | measured | £1,072,853.46 | £1,072,853 | £0.46 | generator summary, correctly cleaned |
+| BL3 | modelled | £712,058.33 | £712,058 | £0.33 | generator D-007 check |
+| BL4 | modelled | £469,233.33 | £469,233 | £0.33 | generator D-007 check |
+| BL5 | measured | £734,394.00 | £734,394 | £0.00 | generator summary, correctly cleaned |
+
+  Every gap is the reference being reported in whole pounds. Summed without rounding by the same rule, BL1, BL3 and BL4 match to the penny; BL2 equals the exact sum of non-excluded bill totals (£1,072,853.46). The modelled lines match even though the CRM's values and dates were messy (QI-03 dates, QI-05 values), because validation converted every one of them correctly.
+- **Unknown customer in BL5:** £734,394.00 including Unknown, £700,122.50 excluding; £34,271.50 (4.67%) sits on Unknown until the three queued shop accounts are decided. BL2 and the modelled lines have nothing on Unknown.
+- **Row counts** from validated data to facts differ only by marked duplicates (tested in `tests/test_warehouse.py`).

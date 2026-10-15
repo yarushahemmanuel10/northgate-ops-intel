@@ -26,6 +26,7 @@ import pandas as pd
 import yaml
 
 from pipeline.settings import ROOT, load_settings
+from pipeline.warehouse.views import create_views
 
 DECISION_COLUMNS = ["source_system", "source_key", "decided_account_id", "reviewer", "decided_on", "reason"]
 # findings whose value can't be used: the typed value must be empty in the warehouse
@@ -354,6 +355,7 @@ def build(settings: dict, cfg: dict, validated: Path | None = None, resolved: Pa
         _write(con, "fact_order_line", lines, ["order_id", "line_no"])
         _write(con, "fact_bill", bills, ["source_row"])
         _write(con, "fact_contract_line", contract_lines, ["line_id"])
+        create_views(con, cfg)
         summary = unknown_summary(con, unknown)
     finally:
         con.close()
