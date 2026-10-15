@@ -201,3 +201,24 @@ One entry per design choice: the choice, the alternatives considered, and the re
 - **Choice:** DuckDB, pinned to exactly 1.5.6 (released on PyPI 28 September 2026, 17 days before it was added; wheels for macOS Intel and Apple silicon, Linux and Windows on Python 3.12). Added with `uv add`, so `pyproject.toml` and `uv.lock` record it; it brings no other dependencies.
 - **Alternatives:** SQLite (in the standard library, but row-oriented and weak at the grouped date queries the KPIs need); pandas only (no SQL layer for the star schema, and harder to show joins and reconciliations as queries); a server database such as PostgreSQL (needs a running service, against the "everything local" rule). DuckDB 2.0 builds exist only as development releases, so the latest stable 1.5.x was taken.
 - **Reason:** an embedded, file-based columnar database: no server, one file that can be rebuilt from scratch in seconds, standard SQL for the star schema, and direct CSV export for Power BI.
+
+## D-024: Rule-based duplicate marking for orders and bills (QI-04, step 3.2)
+- **Bills:** a duplicate is an exact repeat of the whole exported row, `BILL-` ID included (bill ID, account, month, bill date, line rental, call charges, total): a re-run of the export. The first row in file order is kept; later copies are marked. A row with the same amounts under a different bill ID is not a duplicate.
+- **Orders:** a duplicate is a double submission with a new order ID. All must match: same `customer_id`; same lines (SKU, quantity, unit price, compared as typed values); same order total; same status; and placed within the window of the kept order. The earliest order is kept (ties: lowest order ID); the later one is marked with the ID it duplicates. A later order outside the window is a genuine repeat and becomes the new original for anything after it. An order with no valid order date is never marked.
+- **Different status is never a duplicate:** cancelled and refunded orders are already handled by `revenue_treatment` (D-018). On this data 5 content matches within 60 minutes differ in status; none is marked, and a test checks that no QI-10 row is marked.
+- **Nothing is deleted:** marks go to `data/warehouse/duplicates.csv` (rule, kept record, minutes between); validated rows are unchanged; the warehouse load leaves marked rows out of the facts.
+- **Window: 30 minutes, chosen from `data/validated/` before scoring.** Of 368 orders with an earlier order of the same content (customer, lines, total, status), 30 are at most 5.0 minutes after it; the next closest is 3.3 hours (200 minutes). 30 minutes is six times the largest close gap and well below the next one, leaving room for a slower re-submission without reaching genuine repeats.
+- **Scores against the answer key** (`python -m eval.dedup_eval`):
+
+| Window | Marked | TP | FP | FN | Precision | Recall | Kept copy right | Genuine repeats marked | QI-10 rows marked |
+|---|---|---|---|---|---|---|---|---|---|
+| 5 min | 30 | 30 | 0 | 0 | 100% | 100% | 30/30 | 0 | 0 |
+| 10 min | 30 | 30 | 0 | 0 | 100% | 100% | 30/30 | 0 | 0 |
+| **30 min** | **30** | **30** | **0** | **0** | **100%** | **100%** | **30/30** | **0** | **0** |
+| 60 min | 30 | 30 | 0 | 0 | 100% | 100% | 30/30 | 0 | 0 |
+
+  Bills: 5 known, 5 marked, 0 false positives.
+- **The four windows cannot be told apart on this data**, because every injected double submission lands within minutes. Wider windows show where the rule starts to fail: at 240 minutes 1 genuine repeat is marked (SO-100445 as a duplicate of SO-100440); at 3 days, 5. So the scores are optimistic: a real shop where people re-submit the next morning would see those duplicates missed. That is the intended trade-off: a missed duplicate overstates revenue by one order, while wrongly removing a real repeat purchase understates revenue and hides a real order.
+- **Genuine repeats are common:** 341 orders repeat an earlier order by the same customer with identical items (same SKU, quantity and unit price), or 757 if only the set of SKUs must match; injected duplicates and QI-10 rows excluded. None is marked.
+- **BL5 revenue** (orders with `revenue_treatment` include, evaluated in `eval/` only): before deduplication £741,638.00; after £734,394.00, equal to the correctly cleaned figure from the generator summary (£734,394). The £7,244 gap is closed in full.
+- **CRM duplicate accounts**, the other part of QI-04, are handled by entity resolution (D-020, D-021).

@@ -16,6 +16,7 @@ from pipeline.ingest.run import ingest
 from pipeline.resolve.run import load_config as load_resolution, resolve
 from pipeline.settings import ROOT, load_settings
 from pipeline.validate.run import Validator, category_lookup, load_rules, validate
+from pipeline.warehouse.dedup import load_config as load_warehouse, run as find_duplicates
 from shop_api.app import create_app
 
 DICTIONARY = yaml.safe_load((ROOT / "semantic" / "data_dictionary.yaml").read_text(encoding="utf-8"))
@@ -42,6 +43,7 @@ def _fields():
 def dirs(tmp_path_factory):
     m = tmp_path_factory.mktemp
     raw, truth, staging, validated, resolved = m("raw"), m("truth"), m("staging"), m("validated"), m("resolved")
+    warehouse = m("warehouse")
     build_raw(load_config(), raw, truth)
     s = load_settings()
     s = dict(s, shop_api=dict(s["shop_api"], base_url="http://testserver"))
@@ -49,13 +51,14 @@ def dirs(tmp_path_factory):
            raw_dir=raw, staging_dir=staging)
     validate(s, load_rules(), staging, validated)
     resolve(s, load_resolution(), validated, resolved)
-    return {"truth": truth, "validated": validated, "resolved": resolved}
+    find_duplicates(s, load_warehouse(), validated, warehouse)
+    return {"truth": truth, "validated": validated, "resolved": resolved, "warehouse": warehouse}
 
 
 # ---- data dictionary ----------------------------------------------------------------------
 
 def test_every_column_has_an_entry_and_every_entry_a_column(dirs):
-    files = {f.stem: f for d in ("validated", "resolved") for f in dirs[d].glob("*.csv")}
+    files = {f.stem: f for d in ("validated", "resolved", "warehouse") for f in dirs[d].glob("*.csv")}
     assert set(files) == set(DICTIONARY["tables"]), "a table is missing from the dictionary, or listed but not written"
     for name, f in files.items():
         with open(f, encoding="utf-8", newline="") as fh:
@@ -64,7 +67,7 @@ def test_every_column_has_an_entry_and_every_entry_a_column(dirs):
         entries = set(t["columns"]) | set(t["lineage"])
         assert not columns - entries, f"{name}: columns with no dictionary entry: {sorted(columns - entries)}"
         assert not entries - columns, f"{name}: dictionary entries with no column: {sorted(entries - columns)}"
-        layer = "validated" if f.parent == dirs["validated"] else "resolved"
+        layer = next(d for d in ("validated", "resolved", "warehouse") if f.parent == dirs[d])
         assert t["layer"] == layer, name
 
 

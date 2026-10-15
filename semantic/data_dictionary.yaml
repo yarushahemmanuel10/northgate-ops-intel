@@ -1,6 +1,6 @@
 # Data dictionary (step 2.4, D-022). Fictional company, synthetic data.
 #
-# One entry per column of every table in data/validated/ and data/resolved/ (tested both
+# One entry per column of every table in data/validated/, data/resolved/ and data/warehouse/ (tested both
 # ways in tests/test_semantic.py). For each column:
 #   description    what the value means
 #   type           text | date | timestamp | decimal | integer | boolean | code
@@ -208,3 +208,16 @@ tables:
       candidate_2: {description: "Second candidate ACC- ID", type: code, personal_data: false, bqs: [BQ-14]}
       score_2: {description: "Its score", type: decimal, personal_data: false, bqs: [BQ-14]}
       reason: {description: "Why a person is needed", type: text, personal_data: false, bqs: [BQ-14]}
+
+  duplicates:
+    layer: warehouse
+    grain: one row per record marked as a duplicate (QI-04, D-024); the record stays in data/validated/
+    lineage: []
+    columns:
+      table: {description: "Table of the duplicate record: shop_orders or telecoms_bills", type: code, personal_data: false, bqs: [BQ-14]}
+      record_key: {description: "Order ID or bill ID of the duplicate", type: code, personal_data: false, bqs: [BQ-07, BQ-14]}
+      source_row: {description: "Source row of the duplicate (bills repeat their ID, so the row tells copies apart)", type: text, personal_data: false, bqs: [BQ-14]}
+      duplicate_of: {description: "Order or bill ID of the kept record it repeats", type: code, personal_data: false, bqs: [BQ-14]}
+      duplicate_of_row: {description: "Source row of the kept record", type: text, personal_data: false, bqs: [BQ-14]}
+      rule: {description: "DUP-ORDER or DUP-BILL (config/warehouse.yaml)", type: code, personal_data: false, bqs: [BQ-14]}
+      detail: {description: "Plain-English reason, with the minutes between the orders", type: text, personal_data: false, bqs: [BQ-14]}

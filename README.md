@@ -54,6 +54,11 @@ uv run python -m eval.resolution_eval tune     # dev half only: score each candi
 uv run python -m eval.resolution_eval report   # held-out scores, named cases, review queue, BQ-06 payoff
 ```
 
+```
+uv run python -m pipeline.warehouse.dedup      # duplicate orders and bills marked in data/warehouse/ (D-024)
+uv run python -m eval.dedup_eval               # scores by time window, genuine repeats, BL5 before and after
+```
+
 ## What is committed and what is generated
 
 <!-- files-table:start -->
@@ -71,6 +76,7 @@ uv run python -m eval.resolution_eval report   # held-out scores, named cases, r
 | `data/staging/` | No | Ingested text-only tables with lineage | `python -m pipeline.ingest.run` |
 | `data/validated/` | No | Typed tables and validation findings | `python -m pipeline.validate.run` |
 | `data/resolved/` | No | Crosswalk of every source record to a CRM account, and the review queue | `python -m pipeline.resolve.run` |
+| `data/warehouse/` | No | Duplicate marks now; the DuckDB warehouse and exports from step 3.3 | `python -m pipeline.warehouse.dedup` |
 | `.env` | No | API key (never committed) | You |
 
 Everything under `data/` is reproduced exactly from the seed in `config/generator.yaml`.

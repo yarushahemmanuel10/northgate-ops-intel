@@ -1,0 +1,17 @@
+# Layer 2 warehouse settings (Phase 3). Read by pipeline/warehouse/.
+
+# Duplicate rules (QI-04), written before scoring against the answer key (D-024).
+duplicates:
+  bills:
+    # A duplicate bill is an exact repeat of the whole exported row, bill ID included
+    # (a re-run of the export). The first row in the file is kept; later copies are marked.
+    compare: [bill_id, account_no, bill_month, bill_date, line_rental, call_charges, total]
+  orders:
+    # A duplicate order is a double submission: a new order ID with the same content,
+    # placed shortly after the original. All of these must match:
+    #   same customer_id; same lines (sku, quantity, unit price); same order total; same status
+    # and it must be placed within window_minutes of the kept order. The earliest order is
+    # kept (ties: lowest order ID); later ones are marked with the ID they duplicate.
+    # A different status is never a duplicate: cancelled and refunded orders are handled by
+    # revenue_treatment (D-018). An order with no valid order date is never marked.
+    window_minutes: 30          # chosen from the gap distribution in data/validated/ (D-024)
