@@ -17,6 +17,8 @@ from pipeline.resolve.run import load_config as load_resolution, resolve
 from pipeline.settings import ROOT, load_settings
 from pipeline.validate.run import Validator, category_lookup, load_rules, validate
 from pipeline.warehouse.dedup import load_config as load_warehouse, run as find_duplicates
+from pipeline.warehouse.load import build as build_warehouse
+import duckdb
 from shop_api.app import create_app
 
 DICTIONARY = yaml.safe_load((ROOT / "semantic" / "data_dictionary.yaml").read_text(encoding="utf-8"))
@@ -52,6 +54,7 @@ def dirs(tmp_path_factory):
     validate(s, load_rules(), staging, validated)
     resolve(s, load_resolution(), validated, resolved)
     find_duplicates(s, load_warehouse(), validated, warehouse)
+    build_warehouse(s, load_warehouse(), validated, resolved, warehouse)
     return {"truth": truth, "validated": validated, "resolved": resolved, "warehouse": warehouse}
 
 
@@ -59,7 +62,18 @@ def dirs(tmp_path_factory):
 
 def test_every_column_has_an_entry_and_every_entry_a_column(dirs):
     files = {f.stem: f for d in ("validated", "resolved", "warehouse") for f in dirs[d].glob("*.csv")}
-    assert set(files) == set(DICTIONARY["tables"]), "a table is missing from the dictionary, or listed but not written"
+    con = duckdb.connect(str(dirs["warehouse"] / "northgate.duckdb"), read_only=True)
+    db = {}
+    for table, column in con.execute("SELECT table_name, column_name FROM information_schema.columns").fetchall():
+        db.setdefault(table, set()).add(column)
+    con.close()
+    assert not set(files) & set(db)
+    assert set(files) | set(db) == set(DICTIONARY["tables"]), "a table is missing from the dictionary, or listed but not written"
+    for name in db:
+        t = DICTIONARY["tables"][name]
+        entries = set(t["columns"]) | set(t["lineage"])
+        assert db[name] == entries, f"{name}: missing {sorted(db[name] - entries)}, extra {sorted(entries - db[name])}"
+        assert t["layer"] == "warehouse", name
     for name, f in files.items():
         with open(f, encoding="utf-8", newline="") as fh:
             columns = set(csv.DictReader(fh).fieldnames)

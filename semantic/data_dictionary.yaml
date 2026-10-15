@@ -221,3 +221,180 @@ tables:
       duplicate_of_row: {description: "Source row of the kept record", type: text, personal_data: false, bqs: [BQ-14]}
       rule: {description: "DUP-ORDER or DUP-BILL (config/warehouse.yaml)", type: code, personal_data: false, bqs: [BQ-14]}
       detail: {description: "Plain-English reason, with the minutes between the orders", type: text, personal_data: false, bqs: [BQ-14]}
+
+  # ---- DuckDB star schema (data/warehouse/northgate.duckdb, step 3.3, D-025) ----------------
+  # Every fact has customer_id -> dim_customer, business_line -> dim_business_line and its DATE
+  # columns -> dim_date. match_status is auto, human_review, review or unmatched; review and
+  # unmatched rows link to the Unknown customer. *_flag columns hold "RULE: reason" from
+  # validation; where the rule makes the value unusable the typed value is empty.
+
+  dim_customer:
+    layer: warehouse
+    grain: one row per canonical customer (CRM main record, D-020/D-021), plus one Unknown customer row
+    lineage: []
+    columns:
+      customer_id: {description: "Canonical ACC- ID, or UNKNOWN", type: code, personal_data: false, bqs: [BQ-04, BQ-05, BQ-06, BQ-07, BQ-08, BQ-09, BQ-13, BQ-16]}
+      company_name: {description: "Business name from the CRM main record", type: text, personal_data: false, personal_data_note: "business name", bqs: [BQ-06, BQ-08]}
+      sector: {description: "Industry sector", type: code, personal_data: false, bqs: [], unused_reason: "descriptive only; no business question groups by sector"}
+      account_manager: {description: "Account manager who owns the customer", type: text, personal_data: true, personal_data_note: "staff member's name", bqs: [BQ-05, BQ-06]}
+      customer_since: {description: "Start of the relationship (main record)", type: date, personal_data: false, bqs: [BQ-08]}
+      status: {description: "'active' or 'closed' at the as-of date; empty for Unknown", type: code, personal_data: false, bqs: [BQ-06, BQ-09]}
+      closed_date: {description: "Date a closed customer left", type: date, personal_data: false, bqs: [BQ-06, BQ-09]}
+      merged_crm_records: {description: "Duplicate CRM records merged into this customer", type: text, personal_data: false, bqs: [BQ-14]}
+      is_unknown: {description: "true only for the Unknown customer row", type: boolean, personal_data: false, bqs: [BQ-04, BQ-14]}
+
+  dim_business_line:
+    layer: warehouse
+    grain: one row per business line BL1-BL5 (fact sheet §1.2)
+    lineage: []
+    columns:
+      business_line: {description: "BL1-BL5", type: code, personal_data: false, bqs: [BQ-07, BQ-09]}
+      name: {description: "Business line name", type: text, personal_data: false, bqs: [BQ-07]}
+      revenue_source: {description: "The one source its revenue comes from (D-003)", type: text, personal_data: false, bqs: [BQ-07]}
+      modelled: {description: "true when revenue is modelled from contract values, not measured", type: boolean, personal_data: false, bqs: [BQ-07]}
+
+  dim_date:
+    layer: warehouse
+    grain: one row per calendar day from the earliest to the latest date in any table (renewal dates after the as-of date included)
+    lineage: []
+    columns:
+      date: {description: "Calendar date", type: date, personal_data: false, bqs: [BQ-01, BQ-03, BQ-04, BQ-05, BQ-07, BQ-10]}
+      year: {description: "Year", type: integer, personal_data: false, bqs: [BQ-07]}
+      quarter: {description: "Calendar quarter 1-4", type: integer, personal_data: false, bqs: [BQ-06]}
+      month: {description: "Month number", type: integer, personal_data: false, bqs: [BQ-01, BQ-07]}
+      month_name: {description: "Month name", type: text, personal_data: false, bqs: [BQ-07]}
+      year_month: {description: "YYYY-MM, the monthly reporting key", type: code, personal_data: false, bqs: [BQ-01, BQ-03, BQ-04, BQ-07, BQ-10]}
+      day_of_week: {description: "1 = Monday to 7 = Sunday", type: integer, personal_data: false, bqs: [], unused_reason: "calendar attribute; SLA timers use elapsed hours (D-001)"}
+      day_name: {description: "Day name", type: text, personal_data: false, bqs: [], unused_reason: "calendar attribute"}
+      is_weekend: {description: "Saturday or Sunday", type: boolean, personal_data: false, bqs: [], unused_reason: "calendar attribute; SLA timers use elapsed hours (D-001)"}
+      in_data_window: {description: "Inside 1 April 2025 - 30 September 2026 (fact sheet §1.1)", type: boolean, personal_data: false, bqs: [BQ-07, BQ-16]}
+      after_as_of: {description: "On or after 1 October 2026, i.e. after the as-of date", type: boolean, personal_data: false, bqs: [BQ-05]}
+
+  fact_ticket:
+    layer: warehouse
+    grain: one row per support ticket (no duplicates exist for tickets)
+    lineage: []
+    columns:
+      ticket_id: {description: "Ticket ID", type: code, personal_data: false, bqs: [BQ-01, BQ-02, BQ-03, BQ-04, BQ-12]}
+      source_row: {description: "Row in the helpdesk export", type: integer, personal_data: false, bqs: [BQ-14]}
+      customer_id: {description: "Canonical customer, or UNKNOWN", type: code, personal_data: false, bqs: [BQ-04, BQ-06, BQ-08, BQ-16]}
+      match_status: {description: "How the customer link was made: auto, human_review, review, unmatched", type: code, personal_data: false, bqs: [BQ-04, BQ-14]}
+      match_method: {description: "exact, fuzzy, evidence, unmatched or human_review", type: code, personal_data: false, bqs: [BQ-14]}
+      business_line: {description: "Always BL1: tickets belong to managed IT support (D-011)", type: code, personal_data: false, bqs: [BQ-08]}
+      opened_at: {description: "Opened time", type: timestamp, personal_data: false, bqs: [BQ-01, BQ-02, BQ-03, BQ-04, BQ-06, BQ-16]}
+      opened_date: {description: "Date part of opened_at", type: date, personal_data: false, bqs: [BQ-01, BQ-03, BQ-04, BQ-06, BQ-16]}
+      first_responded_at: {description: "First response time; empty if missing or invalid", type: timestamp, personal_data: false, bqs: [BQ-01]}
+      closed_at: {description: "Closed time; empty for open tickets", type: timestamp, personal_data: false, bqs: [BQ-01, BQ-02, BQ-03]}
+      closed_date: {description: "Date part of closed_at", type: date, personal_data: false, bqs: [BQ-01, BQ-03]}
+      priority: {description: "P1-P4; empty when invalid (see priority_flag)", type: code, personal_data: false, bqs: [BQ-01, BQ-02, BQ-03, BQ-16]}
+      category: {description: "Canonical category; empty when not in the vocabulary", type: code, personal_data: false, bqs: [BQ-03]}
+      agent: {description: "Agent who handled the ticket", type: text, personal_data: true, personal_data_note: "staff member's name", bqs: [], unused_reason: "no business question is asked per agent; kept for masking and roles in Phase 6"}
+      kb_article_id: {description: "Linked knowledge base article, if recorded", type: code, personal_data: false, bqs: [BQ-12]}
+      response_sla_measurable: {description: "true when closed with a valid first response", type: boolean, personal_data: false, bqs: [BQ-01]}
+      opened_at_flag: {description: "Why opened_at is unusable, if it is", type: text, personal_data: false, bqs: [BQ-14]}
+      first_responded_at_flag: {description: "Why first_responded_at is unusable or inconsistent (e.g. TIME-002 before opened)", type: text, personal_data: false, bqs: [BQ-01, BQ-14]}
+      closed_at_flag: {description: "Why closed_at is unusable or inconsistent (e.g. TIME-001 closed before opened; value kept)", type: text, personal_data: false, bqs: [BQ-01, BQ-03, BQ-14]}
+      priority_flag: {description: "Why the priority is empty (PRIORITY-002)", type: text, personal_data: false, bqs: [BQ-01, BQ-14]}
+      category_flag: {description: "Why the category is empty (CATEGORY-001)", type: text, personal_data: false, bqs: [BQ-03, BQ-14]}
+      response_sla_flag: {description: "Why response SLA can't be measured: still open, closed with no first response, or invalid time", type: text, personal_data: false, bqs: [BQ-01, BQ-14]}
+
+  ticket_text:
+    layer: warehouse
+    grain: one row per support ticket, holding its free text only; kept apart from fact_ticket for masking and roles (Phase 6)
+    lineage: []
+    columns:
+      ticket_id: {description: "Ticket ID (joins to fact_ticket)", type: code, personal_data: false, bqs: [BQ-11]}
+      description: {description: "Problem as described (free text)", type: text, personal_data: true, personal_data_note: "can hold customer contacts' names, emails and phone numbers (QI-07)", bqs: [BQ-11]}
+      resolution_notes: {description: "How it was resolved (free text)", type: text, personal_data: true, personal_data_note: "free text written by staff; can name people", bqs: [BQ-11]}
+
+  fact_order:
+    layer: warehouse
+    grain: one row per shop order, double submissions left out (D-024); cancelled and refunded orders kept with revenue_treatment exclude
+    lineage: []
+    columns:
+      order_id: {description: "Order ID", type: code, personal_data: false, bqs: [BQ-07, BQ-10]}
+      shop_customer_id: {description: "Shop customer number from the shop", type: code, personal_data: false, bqs: [BQ-14]}
+      customer_id: {description: "Canonical customer, or UNKNOWN", type: code, personal_data: false, bqs: [BQ-06, BQ-07, BQ-08]}
+      match_status: {description: "auto, human_review, review or unmatched", type: code, personal_data: false, bqs: [BQ-07, BQ-14]}
+      match_method: {description: "How the customer link was made", type: code, personal_data: false, bqs: [BQ-14]}
+      business_line: {description: "Always BL5", type: code, personal_data: false, bqs: [BQ-07]}
+      ordered_at: {description: "Order time", type: timestamp, personal_data: false, bqs: [BQ-07]}
+      order_date: {description: "Order date; assigns BL5 revenue to a month", type: date, personal_data: false, bqs: [BQ-06, BQ-07, BQ-10]}
+      status: {description: "placed, dispatched, delivered, cancelled or refunded", type: code, personal_data: false, bqs: [BQ-10]}
+      promised_date: {description: "Promised delivery date", type: date, personal_data: false, bqs: [BQ-10]}
+      delivered_date: {description: "Delivery date; empty if not delivered or missing", type: date, personal_data: false, bqs: [BQ-10]}
+      order_total: {description: "Order total, GBP excluding VAT; the BL5 revenue amount (metrics.yaml)", type: decimal, personal_data: false, bqs: [BQ-06, BQ-07]}
+      line_count: {description: "Number of lines reported by the shop", type: integer, personal_data: false, bqs: [BQ-14]}
+      revenue_treatment: {description: "include or exclude (cancelled, refunded)", type: code, personal_data: false, bqs: [BQ-06, BQ-07]}
+      order_date_flag: {description: "Why order_date is unusable, if it is", type: text, personal_data: false, bqs: [BQ-14]}
+      promised_date_flag: {description: "Why promised_date is unusable, if it is", type: text, personal_data: false, bqs: [BQ-10, BQ-14]}
+      delivered_date_flag: {description: "Why delivered_date is empty or unusable (e.g. MISSING-002 delivered with no date)", type: text, personal_data: false, bqs: [BQ-10, BQ-14]}
+      order_total_flag: {description: "Why order_total is unusable or inconsistent (ARITH-001: lines don't add up; value kept)", type: text, personal_data: false, bqs: [BQ-07, BQ-14]}
+
+  fact_order_line:
+    layer: warehouse
+    grain: one row per line of an order in fact_order
+    lineage: []
+    columns:
+      order_id: {description: "Order ID (joins to fact_order)", type: code, personal_data: false, bqs: [BQ-07]}
+      line_no: {description: "Line number within the order", type: integer, personal_data: false, bqs: [BQ-14]}
+      customer_id: {description: "Canonical customer of the order, or UNKNOWN", type: code, personal_data: false, bqs: [BQ-08]}
+      match_status: {description: "Match status of the order", type: code, personal_data: false, bqs: [BQ-14]}
+      business_line: {description: "Always BL5", type: code, personal_data: false, bqs: [BQ-07]}
+      order_date: {description: "Order date", type: date, personal_data: false, bqs: [BQ-07]}
+      revenue_treatment: {description: "Revenue treatment of the order", type: code, personal_data: false, bqs: [BQ-07]}
+      sku: {description: "Product code", type: code, personal_data: false, bqs: [], unused_reason: "product-level questions are out of scope (docs/03 §2)"}
+      product: {description: "Product name", type: text, personal_data: false, bqs: [], unused_reason: "product-level questions are out of scope (docs/03 §2)"}
+      quantity: {description: "Quantity; empty when not positive (QTY-001)", type: integer, personal_data: false, bqs: [BQ-14]}
+      unit_price: {description: "Unit price, GBP excluding VAT", type: decimal, personal_data: false, bqs: [BQ-14]}
+      line_total: {description: "Line total, GBP excluding VAT (not the revenue amount: use fact_order.order_total)", type: decimal, personal_data: false, bqs: [BQ-14]}
+      quantity_flag: {description: "Why quantity is empty", type: text, personal_data: false, bqs: [BQ-14]}
+      unit_price_flag: {description: "Why unit_price is unusable, if it is", type: text, personal_data: false, bqs: [BQ-14]}
+      line_total_flag: {description: "Why line_total is inconsistent (ARITH-002; value kept)", type: text, personal_data: false, bqs: [BQ-14]}
+
+  fact_bill:
+    layer: warehouse
+    grain: one row per telecoms bill row, export re-run copies left out (D-024); credit notes kept as negative rows
+    lineage: []
+    columns:
+      bill_id: {description: "Bill ID, or CN- for a credit note", type: code, personal_data: false, bqs: [BQ-07]}
+      source_row: {description: "Row in the billing export", type: integer, personal_data: false, bqs: [BQ-14]}
+      account_no: {description: "Telecoms account", type: code, personal_data: false, bqs: [BQ-13, BQ-14]}
+      customer_id: {description: "Canonical customer, or UNKNOWN", type: code, personal_data: false, bqs: [BQ-06, BQ-07, BQ-08]}
+      match_status: {description: "auto, human_review, review or unmatched", type: code, personal_data: false, bqs: [BQ-07, BQ-14]}
+      match_method: {description: "How the customer link was made", type: code, personal_data: false, bqs: [BQ-14]}
+      business_line: {description: "Always BL2", type: code, personal_data: false, bqs: [BQ-07]}
+      bill_month: {description: "First day of the month billed; assigns BL2 revenue to a month", type: date, personal_data: false, bqs: [BQ-06, BQ-07]}
+      bill_date: {description: "Date the bill was issued", type: date, personal_data: false, bqs: [BQ-14]}
+      line_rental: {description: "Line rental, GBP excluding VAT", type: decimal, personal_data: false, bqs: [BQ-14]}
+      call_charges: {description: "Call charges, GBP excluding VAT", type: decimal, personal_data: false, bqs: [BQ-14]}
+      total: {description: "Bill total; negative for credit notes; the BL2 revenue amount (metrics.yaml)", type: decimal, personal_data: false, bqs: [BQ-06, BQ-07]}
+      revenue_treatment: {description: "include, or negative for credit notes", type: code, personal_data: false, bqs: [BQ-07]}
+      is_credit_note: {description: "true for credit notes", type: boolean, personal_data: false, bqs: [BQ-07]}
+      bill_month_flag: {description: "Why bill_month is unusable, if it is", type: text, personal_data: false, bqs: [BQ-14]}
+      bill_date_flag: {description: "Why bill_date is unusable, if it is", type: text, personal_data: false, bqs: [BQ-14]}
+      line_rental_flag: {description: "Why line_rental is unusable, if it is", type: text, personal_data: false, bqs: [BQ-14]}
+      call_charges_flag: {description: "Why call_charges is unusable, if it is", type: text, personal_data: false, bqs: [BQ-14]}
+      total_flag: {description: "Why total is unusable or inconsistent (ARITH-003; value kept)", type: text, personal_data: false, bqs: [BQ-07, BQ-14]}
+
+  fact_contract_line:
+    layer: warehouse
+    grain: one row per CRM contract line (one business line sold to one customer)
+    lineage: []
+    columns:
+      line_id: {description: "Contract line ID", type: code, personal_data: false, bqs: [BQ-05]}
+      source_row: {description: "Row in the CRM sheet", type: integer, personal_data: false, bqs: [BQ-14]}
+      crm_account_id: {description: "CRM record the line was entered against (may be a merged duplicate)", type: code, personal_data: false, bqs: [BQ-14]}
+      customer_id: {description: "Canonical customer (the main record)", type: code, personal_data: false, bqs: [BQ-05, BQ-07, BQ-09, BQ-13, BQ-16]}
+      match_status: {description: "Always auto: CRM records are the master list", type: code, personal_data: false, bqs: [BQ-14]}
+      match_method: {description: "exact, or crm_duplicate when entered against a merged duplicate record", type: code, personal_data: false, bqs: [BQ-14]}
+      business_line: {description: "BL1-BL5", type: code, personal_data: false, bqs: [BQ-05, BQ-07, BQ-09, BQ-13]}
+      annual_value: {description: "Annual value, GBP excluding VAT", type: decimal, personal_data: false, bqs: [BQ-05, BQ-06, BQ-07]}
+      contract_start: {description: "Start date", type: date, personal_data: false, bqs: [BQ-07, BQ-13, BQ-16]}
+      term_years: {description: "Term in years", type: integer, personal_data: false, bqs: [BQ-05]}
+      renewal_date: {description: "Next renewal date; empty if missing (see renewal_date_flag)", type: date, personal_data: false, bqs: [BQ-05, BQ-13]}
+      end_date: {description: "End date; empty if still running", type: date, personal_data: false, bqs: [BQ-07, BQ-13]}
+      annual_value_flag: {description: "Why annual_value is unusable, if it is", type: text, personal_data: false, bqs: [BQ-14]}
+      contract_start_flag: {description: "Why contract_start is unusable, if it is", type: text, personal_data: false, bqs: [BQ-14]}
+      renewal_date_flag: {description: "Why renewal_date is empty (e.g. MISSING-003)", type: text, personal_data: false, bqs: [BQ-05, BQ-14]}
+      end_date_flag: {description: "Why end_date is unusable, if it is", type: text, personal_data: false, bqs: [BQ-14]}

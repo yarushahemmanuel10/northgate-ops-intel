@@ -15,3 +15,15 @@ duplicates:
     # A different status is never a duplicate: cancelled and refunded orders are handled by
     # revenue_treatment (D-018). An order with no valid order date is never marked.
     window_minutes: 30          # chosen from the gap distribution in data/validated/ (D-024)
+
+# Warehouse load (step 3.3, D-025).
+database: northgate.duckdb            # written to warehouse_dir (config/pipeline.yaml), rebuilt from scratch each run
+review_decisions: config/review_decisions.csv
+data_window: {start: "2025-04-01", end: "2026-09-30"}      # fact sheet §1.1
+unknown_customer: {id: UNKNOWN, name: Unknown customer}
+business_lines:                       # fact sheet §1.2; modelled = no transaction source (D-003)
+  - {id: BL1, name: Managed IT support, revenue_source: CRM contract lines, modelled: true}
+  - {id: BL2, name: Broadband and VoIP telecoms, revenue_source: Telecoms bills, modelled: false}
+  - {id: BL3, name: Cloud hosting, revenue_source: CRM contract lines, modelled: true}
+  - {id: BL4, name: Bespoke software, revenue_source: CRM contract lines, modelled: true}
+  - {id: BL5, name: Online IT equipment shop, revenue_source: Shop orders, modelled: false}

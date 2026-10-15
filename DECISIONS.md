@@ -222,3 +222,28 @@ One entry per design choice: the choice, the alternatives considered, and the re
 - **Genuine repeats are common:** 341 orders repeat an earlier order by the same customer with identical items (same SKU, quantity and unit price), or 757 if only the set of SKUs must match; injected duplicates and QI-10 rows excluded. None is marked.
 - **BL5 revenue** (orders with `revenue_treatment` include, evaluated in `eval/` only): before deduplication £741,638.00; after £734,394.00, equal to the correctly cleaned figure from the generator summary (£734,394). The £7,244 gap is closed in full.
 - **CRM duplicate accounts**, the other part of QI-04, are handled by entity resolution (D-020, D-021).
+
+## D-025: Star schema in DuckDB, Unknown customer and human review decisions (step 3.3)
+- **Tables** (`data/warehouse/northgate.duckdb`, built by `python -m pipeline.warehouse.load`, rebuilt from scratch on every run: written to a temporary file, then it replaces the old one). Grain of each in `semantic/data_dictionary.yaml`, tested both ways against the database.
+  - `dim_customer`: the 120 CRM main records (D-020, D-021), merged duplicate IDs listed, plus one `UNKNOWN` row. CRM fields only: no at-risk flag or anything else from the generator (tested).
+  - `dim_business_line`: BL1-BL5 from fact sheet §1.2, with revenue source and a `modelled` flag (D-003).
+  - `dim_date`: every day from the earliest to the latest date in any table (3 January 2019 to 22 September 2029; renewal dates after the as-of date included), with `year_month`, `in_data_window` and `after_as_of`.
+  - `fact_ticket`, `ticket_text`, `fact_order`, `fact_order_line`, `fact_bill`, `fact_contract_line`.
+- **One table more than planned: `fact_order`.** BL5 revenue is defined on order totals (`metrics.yaml`), and 9 orders' lines do not add up to their totals (ARITH-001). Order-level measures on `fact_order_line` would be counted once per line, so orders get their own order-grain fact; `fact_order_line` keeps the items. Alternative rejected: allocating the order total across lines, which would invent a split where the lines are known to be wrong.
+- **Ticket text apart:** `description` and `resolution_notes` live only in `ticket_text` (keyed by ticket ID, flagged personal data), so Phase 6 can mask or restrict them without touching `fact_ticket`. `agent` stays on `fact_ticket` and is flagged personal data.
+- **Typed values and flags:** facts use typed values. Where validation found a value unusable (DATE-001 unparseable, MONEY-002, PRIORITY-002, CATEGORY-001, QTY-001 quantity not positive), the typed value is empty and a `*_flag` column holds the rule and reason. Validation already emptied all of these except QTY-001, which kept −1 in `quantity__value`; the load empties it. **Consistency findings keep the value** and add a flag: TIME-001 closed before opened, TIME-002 response before opened, ARITH-001/002/003 totals that don't add up. Emptying `closed_at` would make a closed ticket look open, and emptying an order total would drop real revenue without saying so; with the flag, later steps exclude these rows on purpose. `response_sla_flag` says why response SLA can't be measured (still open; closed with no first response; invalid time).
+- **Unknown customer:** a fact whose source record is queued (`review`) or `unmatched` in the crosswalk links to `UNKNOWN`, never dropped; `match_status` and `match_method` on every fact say how the link was made. With `config/review_decisions.csv` empty:
+
+| Source | Business line | Status | Rows | Revenue |
+|---|---|---|---|---|
+| Helpdesk | BL1 | queued (review) | 44 | – (tickets carry no revenue) |
+| Helpdesk | BL1 | unmatched | 5 | – |
+| Shop | BL5 | queued (review) | 140 | £34,271.50 |
+| Shop | BL5 | unmatched | 0 | £0 |
+| Telecoms | BL2 | any | 0 | £0 |
+
+  £34,271.50 is 4.67% of correctly cleaned BL5 revenue (£734,394); it is the three shop accounts in the review queue (one of their 141 orders is a marked duplicate). CRM contract lines always resolve, because the CRM is the master list. Revenue follows `metrics.yaml`: orders with `revenue_treatment` include; bills include plus negative.
+- **Human review decisions:** `config/review_decisions.csv` (source system, source key, decided `ACC-` ID, reviewer, date, reason), committed empty. `source_key` is either a record key (ticket, order or bill ID) or a review-queue unit (a helpdesk spelling, `shop customer N`, a telecoms account), so one decision can settle a whole queued name. The build applies a decision only to a record in the review queue and sets `match_status` and `match_method` to `human_review`. It refuses, with an error rather than a silent skip: a decided ID that is not a canonical customer, a key that matches nothing, a decision for a record that was matched automatically, or a row missing any field. Tested with a sample decision for a whole queued shop account and one queued ticket.
+- **Row counts:** facts equal validated rows minus marked duplicates and nothing else: tickets 1,535; orders 3,228 − 30 = 3,198; order lines 4,826 − 47 (the lines of duplicate orders) = 4,779; bills 899 − 5 = 894; contract lines 225 (tested).
+- **Line-level findings:** validation records order-line findings against the order ID with the line number in the text ("line 2: ..."); the load reads the line number from there. Fragile if the wording changes, but tested through the QTY-001 checks.
+- **Not loaded yet:** telecoms contracts and knowledge base documents (needed for BQ-13 and BQ-11/12 in later phases); they stay in `data/validated/`.

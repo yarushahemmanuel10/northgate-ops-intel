@@ -61,6 +61,11 @@ def test_pipeline_never_reads_answer_key_or_generator():
             assert b not in text, f"{path.relative_to(ROOT)} mentions {b}"
     cfg = (ROOT / "config" / "pipeline.yaml").read_text(encoding="utf-8")
     assert "ground_truth" not in cfg and "clean" not in cfg
+    scanned = {p.relative_to(ROOT).as_posix() for p in (ROOT / "pipeline").rglob("*.py")}
+    assert {"pipeline/warehouse/dedup.py", "pipeline/warehouse/load.py"} <= scanned     # warehouse code is scanned
+    for name in ("warehouse.yaml", "review_decisions.csv", "vocabulary.yaml", "resolution.yaml", "validation.yaml"):
+        text = (ROOT / "config" / name).read_text(encoding="utf-8")
+        assert "ground_truth" not in text and "known_issues" not in text, name
 
 
 # --- counts and rejected rows -----------------------------------------------------------------------
