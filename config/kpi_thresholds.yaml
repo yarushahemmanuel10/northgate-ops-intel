@@ -38,3 +38,11 @@ bq16_onboarding:
   definition: >-
     Onboarding is off track when a new customer raises 3 or more tickets, or any P1 or P2, in
     their first 30 days.
+
+bq13_date_tolerance:
+  # New number, approved by the reviewer on 15 October 2026 (D-030), chosen from warehouse data and
+  # business sense (not from the answer key): about one monthly billing cycle.
+  max_days_apart: 30
+  definition: >-
+    The CRM and the billing system disagree when a customer's BL2 end or renewal date and their
+    telecoms contract end date are more than 30 days apart.

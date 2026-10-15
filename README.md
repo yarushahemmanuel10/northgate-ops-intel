@@ -63,6 +63,7 @@ uv run python -m pipeline.warehouse.export     # Power BI CSVs in data/warehouse
 uv run python -m eval.at_risk_eval             # at-risk customers found, before and after review (D-028)
 uv run python -m pipeline.warehouse.review_sheet   # review_sheet.csv for the queued records (D-029)
 uv run python -m pipeline.warehouse.apply_review   # apply config/review_decisions.csv and show the effect
+uv run python -m eval.kpi_checks                   # BQ-05 and BQ-12 figures explained against the answer key (D-032)
 ```
 
 Or run the whole chain in one go, with the shop API running in another terminal:
@@ -71,6 +72,28 @@ Or run the whole chain in one go, with the shop API running in another terminal:
 uv run python -m pipeline.run                  # ingest, validate, resolve, dedup, load, export + summary
 ```
 
+## Dashboard
+
+Four pages (Overview, Service, Customers, Data quality) built on the warehouse views; every number
+comes from a view (D-032). Synthetic data: the banner on every page says so.
+
+On a Mac, from the project folder:
+
+```
+uv sync                                         # once, installs Streamlit and DuckDB into .venv
+uv run python -m pipeline.warehouse.load        # rebuild the warehouse from data/validated/ (no shop API needed)
+uv run streamlit run dashboard/app.py           # then open http://127.0.0.1:8501
+```
+
+Stop it with Ctrl+C. To rebuild everything from the raw files first, start the shop API and run
+`uv run python -m pipeline.run` instead of the load command.
+
+| Overview | Service |
+|---|---|
+| ![Overview](docs/screenshots/overview.png) | ![Service](docs/screenshots/service.png) |
+| **Customers** | **Data quality** |
+| ![Customers](docs/screenshots/customers.png) | ![Data quality](docs/screenshots/data_quality.png) |
+
 ## What is committed and what is generated
 
 <!-- files-table:start -->
@@ -78,6 +101,7 @@ uv run python -m pipeline.run                  # ingest, validate, resolve, dedu
 |---|---|---|---|
 | `config/generator.yaml` | Yes | Every generator setting (seed, volumes, rates) | Hand-written |
 | `docs/`, `DECISIONS.md`, `README.md` | Yes | Business understanding, decisions, this file | Hand-written (this table by `generator.run`) |
+| `dashboard/`, `.streamlit/config.toml`, `docs/screenshots/` | Yes | Streamlit dashboard, its local-only settings, one screenshot per page | Hand-written (D-032) |
 | `config/vocabulary.yaml`, `semantic/data_dictionary.yaml`, `semantic/metrics.yaml` | Yes | Ticket-category vocabulary, data dictionary with personal-data flags, metric definitions | Hand-written (D-022) |
 | `generator/`, `shop_api/`, `tests/` | Yes | Code and tests | Hand-written |
 | `knowledge_base/*.md`, `knowledge_base/_meta.yaml` | Yes | 50 KB documents and their ground truth | Hand-written (D-014) |

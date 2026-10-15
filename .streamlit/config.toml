@@ -1,0 +1,11 @@
+# Dashboard settings (step 4.5, D-032). Local only: the server listens on 127.0.0.1.
+[server]
+address = "127.0.0.1"
+port = 8501
+headless = true          # no first-run email prompt; open http://127.0.0.1:8501 yourself
+
+[browser]
+gatherUsageStats = false
+
+[client]
+toolbarMode = "viewer"

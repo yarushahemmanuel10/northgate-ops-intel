@@ -26,7 +26,7 @@ import pandas as pd
 import yaml
 
 from pipeline.settings import ROOT, load_settings
-from pipeline.warehouse.kpis import create_kpi_views, load_thresholds
+from pipeline.warehouse.kpis import create_dashboard_views, create_kpi_views, load_thresholds
 from pipeline.warehouse.views import create_at_risk_view, create_views
 
 DECISION_COLUMNS = ["source_system", "source_key", "decided_account_id", "reviewer", "decided_on", "reason"]
@@ -193,6 +193,9 @@ SCHEMAS = {
     "dq_finding": {"rule_id": "VARCHAR", "table_name": "VARCHAR", "record_key": "VARCHAR", "source_row": "VARCHAR",
                    "field": "VARCHAR", "action": "VARCHAR", "original": "VARCHAR", "detail": "VARCHAR"},
     "dq_rejected_row": {"source_system": "VARCHAR", "source_file": "VARCHAR", "source_row": "VARCHAR", "reason": "VARCHAR"},
+    "dq_review_record": {"source_system": "VARCHAR", "source_table": "VARCHAR", "source_key": "VARCHAR",
+                         "raw_name": "VARCHAR", "review_status": "VARCHAR", "decided_account_id": "VARCHAR",
+                         "decision_level": "VARCHAR"},
     "dq_source_count": {"source_table": "VARCHAR", "source_system": "VARCHAR", "validated_rows": "INTEGER",
                         "duplicates_marked": "INTEGER", "warehouse_table": "VARCHAR", "warehouse_rows": "INTEGER",
                         "merged_into_other_rows": "INTEGER"},
@@ -384,6 +387,19 @@ def build(settings: dict, cfg: dict, validated: Path | None = None, resolved: Pa
                     "original": _none(x["original"]), "detail": x["detail"]} for x in finding_rows]
     rejected = [{"source_system": x["source_system"], "source_file": x["source_file"], "source_row": x["source_row"],
                  "reason": x["reason"]} for x in _read(sd / "rejected_rows.csv")]
+    # review queue records (marked duplicates left out, as in the facts) and whether a person decided them
+    review_records = []
+    for r in crosswalk:
+        k = (r["source_table"], r["source_row"])
+        if r["status"] != "review" or (r["source_table"] == "shop_orders" and r["source_key"] in dup_orders) \
+                or (r["source_table"] == "telecoms_bills" and r["source_row"] in dup_bill_rows):
+            continue
+        d = links.decided.get(k)
+        review_records.append({"source_system": r["source_system"], "source_table": r["source_table"],
+                               "source_key": r["source_key"], "raw_name": r["raw_name"],
+                               "review_status": "decided" if d else "waiting",
+                               "decided_account_id": d["decided_account_id"] if d else None,
+                               "decision_level": links.decision_level[k] if d else None})
     merged_count = sum(1 for raw, main in crm_map.items() if raw != main)
     source_counts = [
         {"source_table": n, "source_system": sysname, "validated_rows": len(t[n]),
@@ -439,9 +455,11 @@ def build(settings: dict, cfg: dict, validated: Path | None = None, resolved: Pa
         _write(con, "dq_finding", dq_findings, ["table_name", "record_key", "field", "rule_id", "source_row"])
         _write(con, "dq_rejected_row", rejected, ["source_system", "source_file", "source_row"])
         _write(con, "dq_source_count", source_counts, ["source_table"])
+        _write(con, "dq_review_record", review_records, ["source_table", "source_key"])
         create_views(con, cfg)
         create_at_risk_view(con, load_at_risk(), settings["as_of_moment"][:10])
         create_kpi_views(con, load_thresholds(), settings["as_of_moment"][:10])
+        create_dashboard_views(con, settings["as_of_moment"][:10])
         summary = unknown_summary(con, unknown)
     finally:
         con.close()

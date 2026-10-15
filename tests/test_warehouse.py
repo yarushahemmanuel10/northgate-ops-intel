@@ -236,8 +236,8 @@ def test_dim_customer_holds_only_crm_fields(dirs):
         for banned in ("truth", "look_alike", "lookalike", "planted", "pattern", "switch", "is_new_in_window",
                        "shop_annual_budget", "business_lines"):
             assert banned not in col, f"{table}.{col}"
-        # "risk" only in v_at_risk, which computes it from pipeline data (D-028); never in a base table
+        # "risk" only in the BQ-06 views, which compute it from pipeline data (D-028, D-032)
         if "risk" in col:
-            assert table == "v_at_risk", f"{table}.{col}"
+            assert table in ("v_at_risk", "v_kpi_bq06_summary"), f"{table}.{col}"
     base = {r[0] for r in _q(dirs["db"], "SELECT table_name FROM information_schema.tables WHERE table_type = 'BASE TABLE'")}
-    assert "v_at_risk" not in base and "dim_customer" in base
+    assert not {"v_at_risk", "v_kpi_bq06_summary"} & base and "dim_customer" in base     # never a base table

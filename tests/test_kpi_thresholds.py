@@ -39,5 +39,6 @@ def test_bq16_window_comes_from_bq16():
 def test_approved_values_and_definitions():
     assert T["bq04_unusual_volume"]["min_tickets_per_month"] == 4
     assert (T["bq16_onboarding"]["min_tickets"], T["bq16_onboarding"]["min_p1_p2"]) == (3, 1)
-    for key in ("bq02_near_breach", "bq04_unusual_volume", "bq16_onboarding"):
+    assert T["bq13_date_tolerance"]["max_days_apart"] == 30
+    for key in ("bq02_near_breach", "bq04_unusual_volume", "bq16_onboarding", "bq13_date_tolerance"):
         assert len(T[key]["definition"].split()) > 8, key

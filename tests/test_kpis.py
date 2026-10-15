@@ -170,6 +170,9 @@ def test_bq13_lists_against_the_answer_key(env):
     assert sum(r["check_result"] == "BL2 line in CRM, no telecoms account" for r in rows) == removed == 3
     assert sum(r["check_result"] == "telecoms account, no BL2 line in CRM" for r in rows) == added == 2
     assert sum(1 for r in rows if r["days_difference"] not in (None, 0)) == moved == 5
+    flagged = [r for r in rows if r["check_result"] == "dates differ by more than 30 days"]
+    assert len(flagged) == 5 and all(abs(r["days_difference"]) > 30 for r in flagged)
+    assert min(abs(r["days_difference"]) for r in flagged) == 31          # so any tolerance from 7 to 30 flags the same 5
 
 
 def test_bq14_sources_reconcile(env):
@@ -196,3 +199,13 @@ def test_bq16_onboarding_matches_a_hand_calculation(env):
             expected[r["customer_id"]] = len(mine) >= 3 or p12 >= 1
     view = {r["customer_id"]: r["off_track"] for r in _rows(env["db"], "SELECT * FROM v_kpi_bq16_onboarding")}
     assert view == expected and len(view) == 15 and sum(view.values()) == 2
+
+
+def test_renewals_and_superseded_links_are_explained(env):
+    from eval.kpi_checks import renewals_check, superseded_links_check
+    r = renewals_check(env["db"], env["truth"])
+    assert r["clean"] - r["warehouse"] == len(r["only_clean"]) and not r["only_warehouse"]
+    assert r["only_clean"] == r["explained_by_qi08"] == r["listed_as_missing_date"]      # every gap is a removed date
+    s = superseded_links_check(env["db"], env["truth"])
+    assert s["warehouse"] == s["planted_minus_removed"] and s["same_tickets"]
+    assert (s["planted"], s["removed_by_qi08"], s["warehouse"]) == (15, 4, 11)

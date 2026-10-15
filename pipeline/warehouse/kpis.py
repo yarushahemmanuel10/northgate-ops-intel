@@ -38,6 +38,7 @@ def create_kpi_views(con, th: dict, as_of: str) -> None:
     vol = th["bq04_unusual_volume"]["min_tickets_per_month"]
     onb = th["bq16_onboarding"]
     n90 = th["next_90_days"]
+    tol = th["bq13_date_tolerance"]["max_days_apart"]
 
     # base: every ticket with its targets, times and SLA outcome (NULL when not measurable)
     con.execute(f"""
@@ -176,7 +177,7 @@ def create_kpi_views(con, th: dict, as_of: str) -> None:
                COUNT(*) - COUNT(kb_article_id) AS without_article_link,
                (COUNT(*) - COUNT(kb_article_id)) / COUNT(*) AS share_without_link
           FROM fact_ticket""")
-    con.execute("""
+    con.execute(f"""
         CREATE VIEW v_kpi_bq13_crm_telecoms AS
         WITH crm AS (SELECT customer_id, line_id, COALESCE(end_date, renewal_date) AS renewal_date FROM fact_contract_line
                       WHERE business_line = 'BL2'),
@@ -187,7 +188,8 @@ def create_kpi_views(con, th: dict, as_of: str) -> None:
                date_diff('day', crm.renewal_date, tel.end_date) AS days_difference,
                CASE WHEN tel.contract_ref IS NULL THEN 'BL2 line in CRM, no telecoms account'
                     WHEN crm.line_id IS NULL THEN 'telecoms account, no BL2 line in CRM'
-                    ELSE 'matched: compare dates' END AS check_result
+                    WHEN abs(date_diff('day', crm.renewal_date, tel.end_date)) > {tol} THEN 'dates differ by more than {tol} days'
+                    ELSE 'matched, dates agree' END AS check_result
           FROM crm FULL OUTER JOIN tel USING (customer_id)""")
     con.execute("""
         CREATE VIEW v_kpi_bq14_sources AS
@@ -220,3 +222,76 @@ def create_kpi_views(con, th: dict, as_of: str) -> None:
          WHERE s.first_contract_start >= (SELECT MIN(month) FROM v_window_month)
            AND s.first_contract_start <= DATE '{as_of}' - INTERVAL {onb['window_days']} DAY
          GROUP BY ALL""")
+
+
+def create_dashboard_views(con, as_of: str) -> None:
+    """Headline figures for the dashboard, so its pages only select (D-032). Each is a total of a KPI
+    view above, computed here rather than in the page."""
+    es = _exact_sum
+    con.execute(f"""
+        CREATE VIEW v_meta AS
+        SELECT CAST(DATE '{as_of}' - INTERVAL 1 DAY AS DATE) AS as_of_date,
+               (SELECT MIN(month) FROM v_window_month) AS window_start,
+               last_day((SELECT MAX(month) FROM v_window_month)) AS window_end,
+               'Synthetic data: Northgate IT Services Ltd is a fictional company; all names and figures are invented.'
+                 AS synthetic_notice""")
+    con.execute(f"""
+        CREATE VIEW v_dash_revenue_by_line AS
+        SELECT r.business_line,
+               b.business_line || ' ' || b.name || CASE WHEN b.modelled THEN ' (modelled)' ELSE '' END AS line_label,
+               r.revenue_basis, {es('r.revenue')} AS revenue,
+               {es("CASE WHEN r.customer_id = 'UNKNOWN' THEN r.revenue ELSE 0 END")} AS revenue_on_unknown
+          FROM v_revenue r JOIN dim_business_line b USING (business_line)
+         GROUP BY r.business_line, b.business_line, b.name, b.modelled, r.revenue_basis""")
+    con.execute(f"""
+        CREATE VIEW v_dash_revenue_monthly AS
+        SELECT k.business_line, b.business_line || ' ' || b.name || CASE WHEN b.modelled THEN ' (modelled)' ELSE '' END
+                 AS line_label, k.year_month, k.revenue_basis, k.revenue, k.revenue_on_unknown
+          FROM v_kpi_bq07_revenue_monthly k JOIN dim_business_line b USING (business_line)""")
+    con.execute(f"""
+        CREATE VIEW v_dash_revenue_total AS
+        SELECT {es('revenue')} AS revenue_total,
+               {es("CASE WHEN revenue_basis = 'modelled' THEN revenue ELSE 0 END")} AS revenue_modelled,
+               {es("CASE WHEN revenue_basis = 'measured' THEN revenue ELSE 0 END")} AS revenue_measured,
+               {es("CASE WHEN customer_id = 'UNKNOWN' THEN revenue ELSE 0 END")} AS revenue_on_unknown
+          FROM v_revenue""")
+    con.execute("""
+        CREATE VIEW v_kpi_bq01_summary AS
+        SELECT priority, SUM(closed_tickets) AS closed_tickets,
+               SUM(response_measured) AS response_measured, SUM(response_breached) AS response_breached,
+               SUM(response_excluded) AS response_excluded,
+               SUM(response_met) / NULLIF(SUM(response_measured), 0) AS response_compliance,
+               SUM(resolution_measured) AS resolution_measured, SUM(resolution_breached) AS resolution_breached,
+               SUM(resolution_excluded) AS resolution_excluded,
+               SUM(resolution_met) / NULLIF(SUM(resolution_measured), 0) AS resolution_compliance
+          FROM v_kpi_bq01_sla_monthly GROUP BY priority""")
+    con.execute("""
+        CREATE VIEW v_kpi_bq02_summary AS
+        SELECT COUNT(*) AS open_tickets,
+               COUNT(*) FILTER (WHERE alert = 'breached') AS breached,
+               COUNT(*) FILTER (WHERE alert = 'about to breach') AS about_to_breach,
+               COUNT(*) FILTER (WHERE alert = 'within target') AS within_target,
+               COUNT(*) FILTER (WHERE p1_management_escalation) AS p1_escalations
+          FROM v_kpi_bq02_open_tickets""")
+    con.execute("""
+        CREATE VIEW v_kpi_bq14_review_queue AS
+        SELECT source_system, raw_name AS name_as_written,
+               COUNT(*) AS records,
+               COUNT(*) FILTER (WHERE review_status = 'waiting') AS waiting,
+               COUNT(*) FILTER (WHERE review_status = 'decided') AS decided
+          FROM dq_review_record GROUP BY source_system, raw_name""")
+    con.execute(f"""
+        CREATE VIEW v_kpi_bq14_review_summary AS
+        SELECT (SELECT COUNT(*) FROM dq_review_record WHERE review_status = 'waiting') AS records_waiting,
+               (SELECT COUNT(*) FROM dq_review_record WHERE review_status = 'decided') AS records_decided,
+               (SELECT COUNT(DISTINCT source_system || '|' || raw_name) FROM dq_review_record
+                 WHERE review_status = 'waiting') AS names_waiting,
+               (SELECT COUNT(*) FROM fact_ticket WHERE customer_id = 'UNKNOWN')
+             + (SELECT COUNT(*) FROM fact_order WHERE customer_id = 'UNKNOWN')
+             + (SELECT COUNT(*) FROM fact_bill WHERE customer_id = 'UNKNOWN') AS records_on_unknown,
+               (SELECT {es('revenue')} FROM v_revenue WHERE customer_id = 'UNKNOWN') AS revenue_on_unknown""")
+    con.execute("""
+        CREATE VIEW v_kpi_bq06_summary AS
+        SELECT COUNT(*) FILTER (WHERE at_risk) AS customers_at_risk,
+               COUNT(*) FILTER (WHERE status = 'active') AS active_customers
+          FROM v_at_risk""")
