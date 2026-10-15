@@ -1,1 +1,15 @@
 source_system,source_key,decided_account_id,reviewer,decided_on,reason
+helpdesk,INC-00228,ACC-0041,Author,2026-10-15,ticket text contains email domain hartlepool-financial-planning.example; HF fits Hartlepool Financial
+helpdesk,Riverside Soli.,ACC-0035,Author,2026-10-15,"""Soli."" abbreviates Solicitors; Riverside Solicitors Group Ltd is the only Riverside solicitor in the CRM"
+helpdesk,MATHEWS FABRICATIONS,ACC-0013,Author,2026-10-15,"surname spelled Mathews (one t), exact match to ACC-0013 only"
+helpdesk,Mathews Fabrications,ACC-0013,Author,2026-10-15,"surname spelled Mathews (one t), exact match to ACC-0013 only"
+helpdesk,Mathews Fabrications Ltd,ACC-0013,Author,2026-10-15,exact CRM name of ACC-0013
+helpdesk,mathews fabrications ltd,ACC-0013,Author,2026-10-15,exact CRM name of ACC-0013 in lower case
+helpdesk,Mathes Fabrications Ltd,ACC-0013,Author,2026-10-15,"closest spelling: one letter from Mathews, two from Matthews (lower confidence)"
+helpdesk,Mthews Fabrications Ltd,ACC-0013,Author,2026-10-15,"closest spelling: one letter from Mathews, two from Matthews (lower confidence)"
+helpdesk,Matthews Fabrications,ACC-0046,Author,2026-10-15,"surname spelled Matthews (double t), exact match to ACC-0046 only"
+helpdesk,Matthews Fabrications Ltd,ACC-0046,Author,2026-10-15,exact CRM name of ACC-0046
+helpdesk,matthews fabrications ltd,ACC-0046,Author,2026-10-15,exact CRM name of ACC-0046 in lower case
+helpdesk,Matthews Fabricatiosn Ltd,ACC-0046,Author,2026-10-15,surname Matthews (double t) exact; only the trade word has a typo
+shop,shop customer 1020,ACC-0046,Author,2026-10-15,"every order written as ""Matthews Fabrications"" (double t), matching ACC-0046 only"
+shop,shop customer 1040,ACC-0013,Author,2026-10-15,"every order written as ""Mathews Fabriccations Ltd"": surname Mathews (one t) matches ACC-0013; typo is in the trade word"

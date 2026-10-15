@@ -14,7 +14,7 @@ from pipeline.resolve.run import load_config as load_resolution, resolve
 from pipeline.settings import ROOT, load_settings
 from pipeline.validate.run import load_rules, validate
 from pipeline.warehouse.dedup import run as find_duplicates
-from pipeline.warehouse.load import DATE_COLUMNS, DECISION_COLUMNS, build, load_config as load_warehouse
+from pipeline.warehouse.load import DATE_COLUMNS, DECISION_COLUMNS, build, load_config as load_warehouse, read_decisions
 from shop_api.app import create_app
 
 FACTS = ["fact_ticket", "fact_order", "fact_order_line", "fact_bill", "fact_contract_line"]
@@ -211,9 +211,16 @@ def _build_with_dups(dirs, path):
     return build(dirs["s"], load_warehouse(), dirs["validated"], dirs["resolved"], wh, path)
 
 
-def test_committed_review_decisions_file_is_empty_with_header():
-    rows = (ROOT / "config" / "review_decisions.csv").read_text(encoding="utf-8").splitlines()
-    assert rows == [",".join(DECISION_COLUMNS)]
+def test_committed_review_decisions_file_is_well_formed():
+    # the reviewer's own decisions (D-029); test_pipeline_run builds with them, so they also apply cleanly
+    path = ROOT / "config" / "review_decisions.csv"
+    with open(path, encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f)
+        assert reader.fieldnames == DECISION_COLUMNS
+        rows = list(reader)
+    decided = read_decisions(path)                          # raises on a decided row missing a field
+    assert len(decided) == sum(bool(r["decided_account_id"].strip()) for r in rows)
+    assert all(d["decided_account_id"].startswith("ACC-") for d in decided)
 
 
 # ---- no answer-key fields ---------------------------------------------------------------

@@ -66,7 +66,13 @@ def test_summary_figures(runs):
     revenue = {bl: (basis, round(total, 2)) for bl, basis, total in summary["revenue"]}
     assert revenue["BL2"] == ("measured", 1072853.46) and revenue["BL5"] == ("measured", 734394.00)
     assert revenue["BL1"][0] == revenue["BL3"][0] == revenue["BL4"][0] == "modelled"
-    assert round(summary["unknown_revenue"], 2) == 34271.50 and summary["unknown_rows"] > 0
+    # built with the committed review decisions, which can only move revenue off the Unknown customer;
+    # the no-decisions figure (34,271.50) is pinned in tests/test_revenue.py, built with an empty file
+    db = runs["runs"][0][0]["warehouse_dir"] / "northgate.duckdb"
+    con = duckdb.connect(str(db), read_only=True)
+    on_unknown = con.execute("SELECT COALESCE(SUM(revenue), 0) FROM v_revenue WHERE customer_id = 'UNKNOWN'").fetchone()[0]
+    con.close()
+    assert round(summary["unknown_revenue"], 2) == round(on_unknown, 2) <= 34271.50 and summary["unknown_rows"] > 0
 
 
 def test_exports_are_clean_for_power_bi(runs):
