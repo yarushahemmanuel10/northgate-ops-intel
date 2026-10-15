@@ -1,0 +1,31 @@
+# KPI thresholds approved by the reviewer on 15 October 2026 (step 4.3, D-030).
+# Read by pipeline/warehouse/kpis.py. Each says where its number comes from.
+
+bq02_near_breach:
+  # Fact sheet §1.9: "A ticket not resolved at first line by 50% of its resolution target moves
+  # to an engineer". Targets from §1.3 (elapsed hours, D-001).
+  share_of_resolution_target: 0.5
+  resolution_target_hours: {P1: 4, P2: 8, P3: 24, P4: 72}
+  # Fact sheet §1.9: "Any P1 still open 2 hours after it was opened is reported to the operations director".
+  p1_management_escalation_hours: 2
+  definition: >-
+    A ticket is about to breach when it is still open and has used at least half its resolution
+    time; once it passes its full resolution time it is breached.
+
+bq04_unusual_volume:
+  # New number, chosen from warehouse data and business sense (not from the answer key):
+  # the top 1-2% of customer-months; a typical customer raises 0.86 tickets a month.
+  min_tickets_per_month: 4
+  definition: >-
+    A customer is raising unusually many tickets in any month they raise 4 or more, about five
+    times a typical customer's monthly volume.
+
+bq16_onboarding:
+  # 30-day window from BQ-16 itself (docs/03); the two flag numbers are new, chosen from
+  # warehouse data and business sense (not from the answer key).
+  window_days: 30
+  min_tickets: 3
+  min_p1_p2: 1
+  definition: >-
+    Onboarding is off track when a new customer raises 3 or more tickets, or any P1 or P2, in
+    their first 30 days.
