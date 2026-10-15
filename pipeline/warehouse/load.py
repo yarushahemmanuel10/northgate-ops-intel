@@ -26,6 +26,7 @@ import pandas as pd
 import yaml
 
 from pipeline.settings import ROOT, load_settings
+from pipeline.warehouse.kpis import create_kpi_views, load_thresholds
 from pipeline.warehouse.views import create_at_risk_view, create_views
 
 DECISION_COLUMNS = ["source_system", "source_key", "decided_account_id", "reviewer", "decided_on", "reason"]
@@ -183,6 +184,18 @@ SCHEMAS = {
                            "term_years": "INTEGER", "renewal_date": "DATE", "end_date": "DATE",
                            "annual_value_flag": "VARCHAR", "contract_start_flag": "VARCHAR",
                            "renewal_date_flag": "VARCHAR", "end_date_flag": "VARCHAR"},
+    "dim_kb_article": {"kb_id": "VARCHAR", "title": "VARCHAR", "doc_type": "VARCHAR", "status": "VARCHAR",
+                       "superseded_by": "VARCHAR", "superseded_on": "DATE", "created": "DATE", "updated": "DATE"},
+    "fact_telecoms_contract": {"contract_ref": "VARCHAR", "source_row": "INTEGER", "account_no": "VARCHAR",
+                               "customer_id": "VARCHAR", "match_status": "VARCHAR", "match_method": "VARCHAR",
+                               "business_line": "VARCHAR", "service_type": "VARCHAR", "start_date": "DATE",
+                               "end_date": "DATE", "start_date_flag": "VARCHAR", "end_date_flag": "VARCHAR"},
+    "dq_finding": {"rule_id": "VARCHAR", "table_name": "VARCHAR", "record_key": "VARCHAR", "source_row": "VARCHAR",
+                   "field": "VARCHAR", "action": "VARCHAR", "original": "VARCHAR", "detail": "VARCHAR"},
+    "dq_rejected_row": {"source_system": "VARCHAR", "source_file": "VARCHAR", "source_row": "VARCHAR", "reason": "VARCHAR"},
+    "dq_source_count": {"source_table": "VARCHAR", "source_system": "VARCHAR", "validated_rows": "INTEGER",
+                        "duplicates_marked": "INTEGER", "warehouse_table": "VARCHAR", "warehouse_rows": "INTEGER",
+                        "merged_into_other_rows": "INTEGER"},
 }
 DATE_COLUMNS = {t: [c for c, ty in s.items() if ty == "DATE"] for t, s in SCHEMAS.items() if t != "dim_date"}
 
@@ -197,13 +210,16 @@ def _write(con, name: str, rows: list[dict], order: list[str]) -> None:
 
 
 def build(settings: dict, cfg: dict, validated: Path | None = None, resolved: Path | None = None,
-          warehouse: Path | None = None, decisions_path: Path | None = None) -> dict:
+          warehouse: Path | None = None, decisions_path: Path | None = None, staging: Path | None = None) -> dict:
     vd = validated or settings["validated_dir"]
+    sd = staging or settings["staging_dir"]
     rd = resolved or settings["resolved_dir"]
     wd = warehouse or settings["warehouse_dir"]
     t = {n: _read(vd / f"{n}.csv") for n in ("crm_accounts", "crm_contract_lines", "helpdesk_tickets",
-                                              "shop_orders", "shop_order_lines", "telecoms_bills")}
-    findings = Findings(_read(vd / "validation_findings.csv"))
+                                              "shop_orders", "shop_order_lines", "telecoms_bills",
+                                              "telecoms_contracts", "kb_documents")}
+    finding_rows = _read(vd / "validation_findings.csv")
+    findings = Findings(finding_rows)
     crosswalk = _read(rd / "crosswalk.csv")
     dups = _read(wd / "duplicates.csv")
     dup_orders = {d["record_key"] for d in dups if d["table"] == "shop_orders"}
@@ -230,6 +246,7 @@ def build(settings: dict, cfg: dict, validated: Path | None = None, resolved: Pa
     # queue units, so a decision can name a whole spelling, shop account or telecoms account
     shop_cust = {o["order_id"]: o["customer_id"] for o in t["shop_orders"]}
     bill_acct = {b["_source_row"]: b["account_no"] for b in t["telecoms_bills"]}
+    contract_acct = {c["_source_row"]: c["account_no"] for c in t["telecoms_contracts"]}
     units = {}
     for r in crosswalk:
         k = (r["source_table"], r["source_row"])
@@ -239,6 +256,8 @@ def build(settings: dict, cfg: dict, validated: Path | None = None, resolved: Pa
             units[k] = f"shop customer {shop_cust[r['source_key']]}"
         elif r["source_table"] == "telecoms_bills":
             units[k] = bill_acct[r["source_row"]]
+        elif r["source_table"] == "telecoms_contracts":
+            units[k] = contract_acct[r["source_row"]]
     decisions = read_decisions(decisions_path or ROOT / cfg["review_decisions"])
     links = CustomerLinks(crosswalk, decisions, canonical, unknown, units)
 
@@ -341,10 +360,50 @@ def build(settings: dict, cfg: dict, validated: Path | None = None, resolved: Pa
                                "annual_value_flag": f("Annual Value (GBP)"), "contract_start_flag": f("Contract Start"),
                                "renewal_date_flag": f("Renewal Date"), "end_date_flag": f("End Date")})
 
+    # dim_kb_article: document status only (the body stays out of the warehouse until Phase 5)
+    articles = [{"kb_id": k["id"], "title": k["title"], "doc_type": k["type"], "status": k["status"],
+                 "superseded_by": _none(k["superseded_by"]), "superseded_on": _none(k["superseded_on"]),
+                 "created": _none(k["created"]), "updated": _none(k["updated"])} for k in t["kb_documents"]]
+
+    # fact_telecoms_contract (BQ-13): one row per telecoms contract, linked through the crosswalk
+    tel_contracts = []
+    for c in t["telecoms_contracts"]:
+        row = c["_source_row"]
+        f = lambda field: findings.flag("telecoms_contracts", row, field)
+        v = lambda field: findings.value("telecoms_contracts", row, field, c[f"{field}__value"])
+        cust, status, method = links.link("telecoms_contracts", row)
+        tel_contracts.append({"contract_ref": c["contract_ref"], "source_row": int(row), "account_no": c["account_no"],
+                              "customer_id": cust, "match_status": status, "match_method": method,
+                              "business_line": "BL2", "service_type": _none(c["service_type"]),
+                              "start_date": v("start_date"), "end_date": v("end_date"),
+                              "start_date_flag": f("start_date"), "end_date_flag": f("end_date")})
+
+    # data quality (BQ-14): validation findings, rejected rows (reason only, never their content)
+    dq_findings = [{"rule_id": x["rule_id"], "table_name": x["table"], "record_key": x["record_key"],
+                    "source_row": x["source_row"], "field": x["field"], "action": x["action"],
+                    "original": _none(x["original"]), "detail": x["detail"]} for x in finding_rows]
+    rejected = [{"source_system": x["source_system"], "source_file": x["source_file"], "source_row": x["source_row"],
+                 "reason": x["reason"]} for x in _read(sd / "rejected_rows.csv")]
+    merged_count = sum(1 for raw, main in crm_map.items() if raw != main)
+    source_counts = [
+        {"source_table": n, "source_system": sysname, "validated_rows": len(t[n]),
+         "duplicates_marked": dupn, "warehouse_table": wt, "warehouse_rows": wn, "merged_into_other_rows": mg}
+        for n, sysname, dupn, wt, wn, mg in (
+            ("crm_accounts", "crm", 0, "dim_customer", len(customers) - 1, merged_count),
+            ("crm_contract_lines", "crm", 0, "fact_contract_line", len(contract_lines), 0),
+            ("helpdesk_tickets", "helpdesk", 0, "fact_ticket", len(tickets), 0),
+            ("shop_orders", "shop", len(dup_orders), "fact_order", len(orders), 0),
+            ("shop_order_lines", "shop", sum(1 for ln in t["shop_order_lines"] if ln["order_id"] in dup_orders),
+             "fact_order_line", len(lines), 0),
+            ("telecoms_contracts", "telecoms", 0, "fact_telecoms_contract", len(tel_contracts), 0),
+            ("telecoms_bills", "telecoms", len(dup_bill_rows), "fact_bill", len(bills), 0),
+            ("kb_documents", "knowledge_base", 0, "dim_kb_article", len(articles), 0))]
+
     # dim_date: every date that appears anywhere, start to end
     found = set()
     for name, rows in (("dim_customer", customers), ("fact_ticket", tickets), ("fact_order", orders),
-                       ("fact_order_line", lines), ("fact_bill", bills), ("fact_contract_line", contract_lines)):
+                       ("fact_order_line", lines), ("fact_bill", bills), ("fact_contract_line", contract_lines),
+                       ("dim_kb_article", articles), ("fact_telecoms_contract", tel_contracts)):
         for r in rows:
             found.update(r[c] for c in DATE_COLUMNS[name] if r.get(c))
     win = cfg["data_window"]
@@ -375,8 +434,14 @@ def build(settings: dict, cfg: dict, validated: Path | None = None, resolved: Pa
         _write(con, "fact_order_line", lines, ["order_id", "line_no"])
         _write(con, "fact_bill", bills, ["source_row"])
         _write(con, "fact_contract_line", contract_lines, ["line_id"])
+        _write(con, "dim_kb_article", articles, ["kb_id"])
+        _write(con, "fact_telecoms_contract", tel_contracts, ["contract_ref"])
+        _write(con, "dq_finding", dq_findings, ["table_name", "record_key", "field", "rule_id", "source_row"])
+        _write(con, "dq_rejected_row", rejected, ["source_system", "source_file", "source_row"])
+        _write(con, "dq_source_count", source_counts, ["source_table"])
         create_views(con, cfg)
         create_at_risk_view(con, load_at_risk(), settings["as_of_moment"][:10])
+        create_kpi_views(con, load_thresholds(), settings["as_of_moment"][:10])
         summary = unknown_summary(con, unknown)
     finally:
         con.close()
@@ -384,7 +449,8 @@ def build(settings: dict, cfg: dict, validated: Path | None = None, resolved: Pa
     return {"database": str(final), "rows": {n: len(r) for n, r in (
         ("dim_customer", customers), ("dim_date", days), ("fact_ticket", tickets), ("ticket_text", texts),
         ("fact_order", orders), ("fact_order_line", lines), ("fact_bill", bills),
-        ("fact_contract_line", contract_lines))}, "decisions_applied": len(links.decided), "unknown": summary}
+        ("fact_contract_line", contract_lines), ("dim_kb_article", articles),
+        ("fact_telecoms_contract", tel_contracts), ("dq_finding", dq_findings))}, "decisions_applied": len(links.decided), "unknown": summary}
 
 
 def unknown_summary(con, unknown: str) -> list[tuple]:

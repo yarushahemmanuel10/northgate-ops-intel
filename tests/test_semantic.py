@@ -50,7 +50,7 @@ def dirs(tmp_path_factory):
     warehouse = m("warehouse")
     build_raw(load_config(), raw, truth)
     s = load_settings()
-    s = dict(s, shop_api=dict(s["shop_api"], base_url="http://testserver"))
+    s = dict(s, staging_dir=staging, shop_api=dict(s["shop_api"], base_url="http://testserver"))
     ingest(s, client=TestClient(create_app(raw / "shop_orders.json"), base_url="http://testserver"),
            raw_dir=raw, staging_dir=staging)
     validate(s, load_rules(), staging, validated)

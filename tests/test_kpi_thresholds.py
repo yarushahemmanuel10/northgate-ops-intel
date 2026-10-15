@@ -18,8 +18,17 @@ def test_bq02_numbers_come_from_the_fact_sheet():
     t = T["bq02_near_breach"]
     assert t["share_of_resolution_target"] == 0.5 and "by 50% of its resolution target" in s19
     assert t["p1_management_escalation_hours"] == 2 and "Any P1 still open 2 hours after it was opened" in s19
-    for p, h in t["resolution_target_hours"].items():
-        assert re.search(rf"^\| {p} \|.*\| {h} hours? \|\s*$", s13, re.M), p
+
+
+
+def test_sla_targets_and_window_come_from_the_fact_sheet():
+    s13, s17 = _section("1.3"), _section("1.7")
+    t = T["sla_targets"]
+    for p in ("P1", "P2", "P3", "P4"):
+        r, h = t["response_hours"][p], t["resolution_hours"][p]
+        assert re.search(rf"^\| {p} \|.*\| {r} hours? \| {h} hours \|\s*$", s13, re.M), p
+    assert (T["next_90_days"]["start"], T["next_90_days"]["end"]) == ("2026-10-01", "2026-12-29")
+    assert "Renewal date from 1 October to 29 December 2026 inclusive" in s17
 
 
 def test_bq16_window_comes_from_bq16():
@@ -30,5 +39,5 @@ def test_bq16_window_comes_from_bq16():
 def test_approved_values_and_definitions():
     assert T["bq04_unusual_volume"]["min_tickets_per_month"] == 4
     assert (T["bq16_onboarding"]["min_tickets"], T["bq16_onboarding"]["min_p1_p2"]) == (3, 1)
-    for key in T:
+    for key in ("bq02_near_breach", "bq04_unusual_volume", "bq16_onboarding"):
         assert len(T[key]["definition"].split()) > 8, key

@@ -499,3 +499,308 @@ tables:
       orders_total: {description: "Shop accounts: included order total, duplicates left out", type: decimal, personal_data: false, bqs: [BQ-07, BQ-14]}
       priority_category: {description: "Ticket records: priority / category", type: text, personal_data: false, bqs: [BQ-14]}
       names_as_written: {description: "Shop accounts: every company name used on its orders", type: text, personal_data: false, personal_data_note: "business names", bqs: [BQ-14]}
+
+  # ---- tables added for the KPI views (step 4.4, D-031) ----------------------------------------
+  dim_kb_article:
+    layer: warehouse
+    grain: one row per knowledge base document; status only, the body stays out until Phase 5
+    lineage: []
+    columns:
+      kb_id: {description: "Document ID", type: code, personal_data: false, bqs: [BQ-11, BQ-12]}
+      title: {description: "Title", type: text, personal_data: false, bqs: [BQ-12]}
+      doc_type: {description: "article or policy", type: code, personal_data: false, bqs: [BQ-12]}
+      status: {description: "current or superseded", type: code, personal_data: false, bqs: [BQ-11, BQ-12]}
+      superseded_by: {description: "Replacement document", type: code, personal_data: false, bqs: [BQ-12]}
+      superseded_on: {description: "Date superseded", type: date, personal_data: false, bqs: [BQ-12]}
+      created: {description: "Date created", type: date, personal_data: false, bqs: [BQ-12]}
+      updated: {description: "Date last updated", type: date, personal_data: false, bqs: [BQ-12]}
+
+  fact_telecoms_contract:
+    layer: warehouse
+    grain: one row per telecoms contract (one per telecoms account)
+    lineage: []
+    columns:
+      contract_ref: {description: "Telecoms contract ID", type: code, personal_data: false, bqs: [BQ-13]}
+      source_row: {description: "Row in the billing export", type: integer, personal_data: false, bqs: [BQ-14]}
+      account_no: {description: "Telecoms account", type: code, personal_data: false, bqs: [BQ-13]}
+      customer_id: {description: "Canonical customer, or UNKNOWN", type: code, personal_data: false, bqs: [BQ-13]}
+      match_status: {description: "auto, human_review, review or unmatched", type: code, personal_data: false, bqs: [BQ-14]}
+      match_method: {description: "How the customer link was made", type: code, personal_data: false, bqs: [BQ-14]}
+      business_line: {description: "Always BL2", type: code, personal_data: false, bqs: [BQ-13]}
+      service_type: {description: "Broadband, leased line, VoIP or a combination", type: code, personal_data: false, bqs: [BQ-08]}
+      start_date: {description: "Contract start", type: date, personal_data: false, bqs: [BQ-13]}
+      end_date: {description: "Contract end; compared with the CRM BL2 line", type: date, personal_data: false, bqs: [BQ-13]}
+      start_date_flag: {description: "Why start_date is unusable, if it is", type: text, personal_data: false, bqs: [BQ-14]}
+      end_date_flag: {description: "Why end_date is unusable, if it is", type: text, personal_data: false, bqs: [BQ-14]}
+
+  dq_finding:
+    layer: warehouse
+    grain: one row per validation finding (copy of validation_findings.csv, BQ-14)
+    lineage: []
+    columns:
+      rule_id: {description: "Validation rule", type: code, personal_data: false, bqs: [BQ-14]}
+      table_name: {description: "Validated table", type: code, personal_data: false, bqs: [BQ-14]}
+      record_key: {description: "Record key", type: code, personal_data: false, bqs: [BQ-14]}
+      source_row: {description: "Source row", type: text, personal_data: false, bqs: [BQ-14]}
+      field: {description: "Field", type: code, personal_data: false, bqs: [BQ-14]}
+      action: {description: "converted, converted_by_convention, normalised, mapped or flagged", type: code, personal_data: false, bqs: [BQ-14]}
+      original: {description: "Original text of the field", type: text, personal_data: false, personal_data_note: "only typed fields (dates, money, priority, category) are validated", bqs: [BQ-14]}
+      detail: {description: "Reason", type: text, personal_data: false, bqs: [BQ-14]}
+
+  dq_rejected_row:
+    layer: warehouse
+    grain: one row per row ingestion rejected for broken structure (none on the project data); the raw content is not loaded
+    lineage: []
+    columns:
+      source_system: {description: "System", type: code, personal_data: false, bqs: [BQ-14]}
+      source_file: {description: "File or endpoint", type: text, personal_data: false, bqs: [BQ-14]}
+      source_row: {description: "Row", type: text, personal_data: false, bqs: [BQ-14]}
+      reason: {description: "Why it was rejected", type: text, personal_data: false, bqs: [BQ-14]}
+
+  dq_source_count:
+    layer: warehouse
+    grain: one row per validated table, with how its rows reach the warehouse
+    lineage: []
+    columns:
+      source_table: {description: "Validated table", type: code, personal_data: false, bqs: [BQ-14]}
+      source_system: {description: "System", type: code, personal_data: false, bqs: [BQ-14]}
+      validated_rows: {description: "Rows in data/validated/", type: integer, personal_data: false, bqs: [BQ-14]}
+      duplicates_marked: {description: "Rows marked as duplicates (D-024)", type: integer, personal_data: false, bqs: [BQ-14]}
+      warehouse_table: {description: "Warehouse table the rows go to", type: code, personal_data: false, bqs: [BQ-14]}
+      warehouse_rows: {description: "Rows in that table", type: integer, personal_data: false, bqs: [BQ-14]}
+      merged_into_other_rows: {description: "CRM duplicate records merged into a main record (D-020)", type: integer, personal_data: false, bqs: [BQ-14]}
+
+  # ---- KPI views (step 4.4, D-031); thresholds from config/kpi_thresholds.yaml ------------------
+  v_ticket_sla:
+    layer: warehouse
+    grain: one row per ticket, with its SLA targets, elapsed times and why it is excluded from each measure (if it is)
+    lineage: []
+    columns:
+      ticket_id: {description: "Ticket", type: code, personal_data: false, bqs: [BQ-01, BQ-03]}
+      customer_id: {description: "Canonical customer, or UNKNOWN", type: code, personal_data: false, bqs: [BQ-08]}
+      priority: {description: "P1-P4, empty when invalid", type: code, personal_data: false, bqs: [BQ-01, BQ-03]}
+      category: {description: "Canonical category", type: code, personal_data: false, bqs: [BQ-03]}
+      opened_at: {description: "Opened time", type: timestamp, personal_data: false, bqs: [BQ-01, BQ-03]}
+      first_responded_at: {description: "First response time", type: timestamp, personal_data: false, bqs: [BQ-01]}
+      closed_at: {description: "Closed time", type: timestamp, personal_data: false, bqs: [BQ-01, BQ-03]}
+      closed_month: {description: "YYYY-MM of closing: the month a ticket counts in", type: code, personal_data: false, bqs: [BQ-01, BQ-03]}
+      response_target_hours: {description: "Fact sheet §1.3 response target", type: integer, personal_data: false, bqs: [BQ-01]}
+      resolution_target_hours: {description: "Fact sheet §1.3 resolution target", type: integer, personal_data: false, bqs: [BQ-01, BQ-02]}
+      response_hours: {description: "Elapsed hours to first response", type: decimal, personal_data: false, bqs: [BQ-01]}
+      resolution_hours: {description: "Elapsed hours to closing", type: decimal, personal_data: false, bqs: [BQ-01, BQ-03]}
+      response_excluded_reason: {description: "Why left out of response SLA (no valid priority, still open, no first response, response before opened); empty when measured", type: text, personal_data: false, bqs: [BQ-01, BQ-14]}
+      resolution_excluded_reason: {description: "Why left out of resolution SLA (open, no valid priority, closed before opened); empty when measured", type: text, personal_data: false, bqs: [BQ-01, BQ-03, BQ-14]}
+
+  v_kpi_bq01_sla_monthly:
+    layer: warehouse
+    grain: one row per month of closing and priority
+    lineage: []
+    columns:
+      year_month: {description: "Month the tickets closed", type: code, personal_data: false, bqs: [BQ-01]}
+      priority: {description: "P1-P4, or none for invalid priorities", type: code, personal_data: false, bqs: [BQ-01]}
+      closed_tickets: {description: "Tickets closed", type: integer, personal_data: false, bqs: [BQ-01]}
+      response_measured: {description: "Tickets in response SLA", type: integer, personal_data: false, bqs: [BQ-01]}
+      response_met: {description: "Responded within target", type: integer, personal_data: false, bqs: [BQ-01]}
+      response_breached: {description: "Responded after target", type: integer, personal_data: false, bqs: [BQ-01, BQ-15]}
+      response_excluded: {description: "Left out of response SLA, counted separately", type: integer, personal_data: false, bqs: [BQ-01]}
+      resolution_measured: {description: "Tickets in resolution SLA", type: integer, personal_data: false, bqs: [BQ-01]}
+      resolution_met: {description: "Resolved within target", type: integer, personal_data: false, bqs: [BQ-01]}
+      resolution_breached: {description: "Resolved after target", type: integer, personal_data: false, bqs: [BQ-01, BQ-15]}
+      resolution_excluded: {description: "Left out of resolution SLA, counted separately", type: integer, personal_data: false, bqs: [BQ-01]}
+      response_compliance: {description: "response_met / response_measured", type: decimal, personal_data: false, bqs: [BQ-01, BQ-15]}
+      resolution_compliance: {description: "resolution_met / resolution_measured", type: decimal, personal_data: false, bqs: [BQ-01, BQ-15]}
+
+  v_kpi_bq02_open_tickets:
+    layer: warehouse
+    grain: one row per ticket open at the as-of moment
+    lineage: []
+    columns:
+      ticket_id: {description: "Ticket", type: code, personal_data: false, bqs: [BQ-02]}
+      customer_id: {description: "Canonical customer, or UNKNOWN", type: code, personal_data: false, bqs: [BQ-02]}
+      priority: {description: "P1-P4", type: code, personal_data: false, bqs: [BQ-02]}
+      category: {description: "Canonical category", type: code, personal_data: false, bqs: [BQ-02]}
+      opened_at: {description: "Opened time", type: timestamp, personal_data: false, bqs: [BQ-02]}
+      age_hours: {description: "As-of moment minus opened_at, elapsed hours", type: decimal, personal_data: false, bqs: [BQ-02]}
+      resolution_target_hours: {description: "Fact sheet §1.3", type: integer, personal_data: false, bqs: [BQ-02]}
+      share_of_target_used: {description: "age_hours / resolution_target_hours", type: decimal, personal_data: false, bqs: [BQ-02]}
+      alert: {description: "breached (past full target), about to breach (at least 50%, §1.9), within target", type: code, personal_data: false, bqs: [BQ-02, BQ-15]}
+      p1_management_escalation: {description: "P1 open 2 hours or more (§1.9)", type: boolean, personal_data: false, bqs: [BQ-02]}
+
+  v_kpi_bq03_resolution_time:
+    layer: warehouse
+    grain: one row per month of closing, priority and category; open tickets excluded
+    lineage: []
+    columns:
+      year_month: {description: "Month closed", type: code, personal_data: false, bqs: [BQ-03]}
+      priority: {description: "P1-P4", type: code, personal_data: false, bqs: [BQ-03]}
+      category: {description: "Canonical category", type: code, personal_data: false, bqs: [BQ-03]}
+      tickets: {description: "Tickets measured", type: integer, personal_data: false, bqs: [BQ-03]}
+      mean_hours: {description: "Mean elapsed hours to resolve", type: decimal, personal_data: false, bqs: [BQ-03]}
+      median_hours: {description: "Median elapsed hours to resolve", type: decimal, personal_data: false, bqs: [BQ-03]}
+
+  v_kpi_bq04_ticket_volume:
+    layer: warehouse
+    grain: one row per customer and month with at least one ticket (Unknown customer included as its own row)
+    lineage: []
+    columns:
+      customer_id: {description: "Canonical customer, or UNKNOWN", type: code, personal_data: false, bqs: [BQ-04]}
+      company_name: {description: "Business name", type: text, personal_data: false, bqs: [BQ-04]}
+      is_unknown: {description: "true for tickets not matched to a customer, counted separately", type: boolean, personal_data: false, bqs: [BQ-04]}
+      year_month: {description: "Month opened", type: code, personal_data: false, bqs: [BQ-04]}
+      tickets: {description: "Tickets opened", type: integer, personal_data: false, bqs: [BQ-04]}
+      unusual_volume: {description: "4 or more tickets in the month (D-030); empty for the Unknown customer", type: boolean, personal_data: false, bqs: [BQ-04, BQ-15]}
+
+  v_kpi_bq05_renewals:
+    layer: warehouse
+    grain: one row per running contract line renewing 1 October - 29 December 2026, or with no renewal date
+    lineage: []
+    columns:
+      line_id: {description: "Contract line", type: code, personal_data: false, bqs: [BQ-05]}
+      customer_id: {description: "Canonical customer", type: code, personal_data: false, bqs: [BQ-05]}
+      company_name: {description: "Business name", type: text, personal_data: false, bqs: [BQ-05]}
+      business_line: {description: "BL1-BL5", type: code, personal_data: false, bqs: [BQ-05]}
+      annual_value: {description: "Annual value", type: decimal, personal_data: false, bqs: [BQ-05]}
+      renewal_date: {description: "Renewal date; empty when missing", type: date, personal_data: false, bqs: [BQ-05]}
+      account_manager: {description: "Account manager", type: text, personal_data: true, personal_data_note: "staff member's name; not shown on the dashboard", bqs: [BQ-05]}
+      renewal_status: {description: "renews in next 90 days, or renewal date missing (listed separately)", type: code, personal_data: false, bqs: [BQ-05]}
+
+  v_kpi_bq07_revenue_monthly:
+    layer: warehouse
+    grain: one row per business line and month
+    lineage: []
+    columns:
+      business_line: {description: "BL1-BL5", type: code, personal_data: false, bqs: [BQ-07]}
+      year_month: {description: "Month", type: code, personal_data: false, bqs: [BQ-07]}
+      revenue_basis: {description: "modelled or measured", type: code, personal_data: false, bqs: [BQ-07]}
+      revenue: {description: "Revenue including the Unknown customer", type: decimal, personal_data: false, bqs: [BQ-07, BQ-15]}
+      revenue_on_unknown: {description: "Part of it on the Unknown customer", type: decimal, personal_data: false, bqs: [BQ-07, BQ-14]}
+
+  v_kpi_bq08_customer_summary:
+    layer: warehouse
+    grain: one row per customer (Unknown included), over the data window
+    lineage: []
+    columns:
+      customer_id: {description: "Canonical customer", type: code, personal_data: false, bqs: [BQ-08]}
+      company_name: {description: "Business name", type: text, personal_data: false, bqs: [BQ-08]}
+      status: {description: "active or closed", type: code, personal_data: false, bqs: [BQ-08]}
+      lines_with_revenue: {description: "Business lines with revenue in the window", type: text, personal_data: false, bqs: [BQ-08]}
+      revenue_bl1: {description: "BL1 revenue (modelled)", type: decimal, personal_data: false, bqs: [BQ-08]}
+      revenue_bl2: {description: "BL2 revenue", type: decimal, personal_data: false, bqs: [BQ-08]}
+      revenue_bl3: {description: "BL3 revenue (modelled)", type: decimal, personal_data: false, bqs: [BQ-08]}
+      revenue_bl4: {description: "BL4 revenue (modelled)", type: decimal, personal_data: false, bqs: [BQ-08]}
+      revenue_bl5: {description: "BL5 revenue", type: decimal, personal_data: false, bqs: [BQ-08]}
+      revenue_total: {description: "All lines", type: decimal, personal_data: false, bqs: [BQ-08]}
+      tickets: {description: "Tickets raised", type: integer, personal_data: false, bqs: [BQ-08]}
+      resolution_breaches: {description: "Resolution SLA breaches", type: integer, personal_data: false, bqs: [BQ-08]}
+      response_breaches: {description: "Response SLA breaches", type: integer, personal_data: false, bqs: [BQ-08]}
+
+  v_kpi_bq09_lines_taken:
+    layer: warehouse
+    grain: one row per active customer with at least one line
+    lineage: []
+    columns:
+      customer_id: {description: "Canonical customer", type: code, personal_data: false, bqs: [BQ-09]}
+      company_name: {description: "Business name", type: text, personal_data: false, bqs: [BQ-09]}
+      lines_taken: {description: "Lines taken: contract lines running at the as-of date, plus BL5 if the customer has any included shop order", type: text, personal_data: false, bqs: [BQ-09]}
+      line_count: {description: "Number of lines", type: integer, personal_data: false, bqs: [BQ-09]}
+      single_line: {description: "Takes only one line", type: boolean, personal_data: false, bqs: [BQ-09]}
+
+  v_kpi_bq10_delivery_monthly:
+    layer: warehouse
+    grain: one row per order month
+    lineage: []
+    columns:
+      year_month: {description: "Month ordered", type: code, personal_data: false, bqs: [BQ-10]}
+      delivered_with_date: {description: "Delivered orders with a delivery date", type: integer, personal_data: false, bqs: [BQ-10]}
+      on_time: {description: "Delivered on or before the promised date", type: integer, personal_data: false, bqs: [BQ-10]}
+      late: {description: "Delivered after the promised date", type: integer, personal_data: false, bqs: [BQ-10]}
+      delivered_date_missing: {description: "Marked delivered with no date: counted separately, not assumed on time or late", type: integer, personal_data: false, bqs: [BQ-10]}
+      not_yet_delivered: {description: "Placed or dispatched", type: integer, personal_data: false, bqs: [BQ-10]}
+      cancelled_or_refunded: {description: "Cancelled or refunded, left out of the rate", type: integer, personal_data: false, bqs: [BQ-10]}
+      on_time_rate: {description: "on_time / delivered_with_date", type: decimal, personal_data: false, bqs: [BQ-10, BQ-15]}
+
+  v_kpi_bq12_kb_usage:
+    layer: warehouse
+    grain: one row per knowledge base document
+    lineage: []
+    columns:
+      kb_id: {description: "Document", type: code, personal_data: false, bqs: [BQ-12]}
+      title: {description: "Title", type: text, personal_data: false, bqs: [BQ-12]}
+      doc_type: {description: "article or policy", type: code, personal_data: false, bqs: [BQ-12]}
+      status: {description: "current or superseded", type: code, personal_data: false, bqs: [BQ-12]}
+      superseded_by: {description: "Replacement", type: code, personal_data: false, bqs: [BQ-12]}
+      superseded_on: {description: "Date superseded", type: date, personal_data: false, bqs: [BQ-12]}
+      linked_tickets: {description: "Tickets linking it", type: integer, personal_data: false, bqs: [BQ-12]}
+      linked_after_superseded: {description: "Tickets opened on or after it was superseded that still link it", type: integer, personal_data: false, bqs: [BQ-12]}
+
+  v_kpi_bq12_link_share:
+    layer: warehouse
+    grain: one row for all tickets
+    lineage: []
+    columns:
+      tickets: {description: "Tickets", type: integer, personal_data: false, bqs: [BQ-12]}
+      with_article_link: {description: "Tickets with a recorded article link", type: integer, personal_data: false, bqs: [BQ-12]}
+      without_article_link: {description: "Tickets with none (includes links that were used but not recorded, QI-08)", type: integer, personal_data: false, bqs: [BQ-12]}
+      share_without_link: {description: "without_article_link / tickets", type: decimal, personal_data: false, bqs: [BQ-12]}
+
+  v_kpi_bq13_crm_telecoms:
+    layer: warehouse
+    grain: one row per customer with a CRM BL2 line or a telecoms contract
+    lineage: []
+    columns:
+      customer_id: {description: "Canonical customer", type: code, personal_data: false, bqs: [BQ-13]}
+      line_id: {description: "CRM BL2 contract line, if any", type: code, personal_data: false, bqs: [BQ-13]}
+      contract_ref: {description: "Telecoms contract, if any", type: code, personal_data: false, bqs: [BQ-13]}
+      account_no: {description: "Telecoms account, if any", type: code, personal_data: false, bqs: [BQ-13]}
+      crm_end_or_renewal_date: {description: "CRM BL2 end date, or renewal date if the line is running", type: date, personal_data: false, bqs: [BQ-13]}
+      telecoms_end_date: {description: "Telecoms contract end date", type: date, personal_data: false, bqs: [BQ-13]}
+      days_difference: {description: "telecoms_end_date minus the CRM date, in days; no tolerance applied yet (awaiting approval)", type: integer, personal_data: false, bqs: [BQ-13]}
+      check_result: {description: "matched: compare dates; BL2 line in CRM, no telecoms account; telecoms account, no BL2 line in CRM", type: code, personal_data: false, bqs: [BQ-13]}
+
+  v_kpi_bq14_sources:
+    layer: warehouse
+    grain: one row per validated table
+    lineage: []
+    columns:
+      source_table: {description: "Validated table", type: code, personal_data: false, bqs: [BQ-14]}
+      source_system: {description: "System", type: code, personal_data: false, bqs: [BQ-14]}
+      validated_rows: {description: "Rows validated", type: integer, personal_data: false, bqs: [BQ-14]}
+      duplicates_marked: {description: "Rows marked as duplicates", type: integer, personal_data: false, bqs: [BQ-14]}
+      warehouse_table: {description: "Where the rows go", type: code, personal_data: false, bqs: [BQ-14]}
+      warehouse_rows: {description: "Rows there", type: integer, personal_data: false, bqs: [BQ-14]}
+      merged_into_other_rows: {description: "CRM records merged into a main record", type: integer, personal_data: false, bqs: [BQ-14]}
+      reconciles: {description: "validated = warehouse + duplicates + merged; nothing else lost", type: boolean, personal_data: false, bqs: [BQ-14]}
+      rejected_rows_for_system: {description: "Rows ingestion rejected for this system", type: integer, personal_data: false, bqs: [BQ-14]}
+
+  v_kpi_bq14_matching:
+    layer: warehouse
+    grain: one row per source and customer-match status
+    lineage: []
+    columns:
+      source: {description: "helpdesk, shop, telecoms bills or telecoms contracts", type: code, personal_data: false, bqs: [BQ-14]}
+      match_status: {description: "auto, human_review, review or unmatched", type: code, personal_data: false, bqs: [BQ-14]}
+      records: {description: "Records", type: integer, personal_data: false, bqs: [BQ-14]}
+
+  v_kpi_bq14_findings:
+    layer: warehouse
+    grain: one row per validation rule, table, field and action
+    lineage: []
+    columns:
+      rule_id: {description: "Validation rule", type: code, personal_data: false, bqs: [BQ-14]}
+      table_name: {description: "Table", type: code, personal_data: false, bqs: [BQ-14]}
+      field: {description: "Field", type: code, personal_data: false, bqs: [BQ-14]}
+      action: {description: "What validation did", type: code, personal_data: false, bqs: [BQ-14]}
+      findings: {description: "Number of findings", type: integer, personal_data: false, bqs: [BQ-14]}
+      example_detail: {description: "One example reason", type: text, personal_data: false, bqs: [BQ-14]}
+
+  v_kpi_bq16_onboarding:
+    layer: warehouse
+    grain: one row per customer whose first contract starts inside the data window and at least 30 days before the as-of date
+    lineage: []
+    columns:
+      customer_id: {description: "Canonical customer", type: code, personal_data: false, bqs: [BQ-16]}
+      company_name: {description: "Business name", type: text, personal_data: false, bqs: [BQ-16]}
+      first_contract_start: {description: "Earliest contract line start (D-009)", type: date, personal_data: false, bqs: [BQ-16]}
+      tickets_first_30_days: {description: "Tickets opened in the first 30 days", type: integer, personal_data: false, bqs: [BQ-16]}
+      p1_p2_first_30_days: {description: "P1 or P2 tickets in the first 30 days", type: integer, personal_data: false, bqs: [BQ-16]}
+      off_track: {description: "3 or more tickets, or any P1/P2, in the first 30 days (D-030)", type: boolean, personal_data: false, bqs: [BQ-16, BQ-15]}

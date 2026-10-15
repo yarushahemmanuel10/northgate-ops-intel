@@ -1,11 +1,20 @@
 # KPI thresholds approved by the reviewer on 15 October 2026 (step 4.3, D-030).
 # Read by pipeline/warehouse/kpis.py. Each says where its number comes from.
 
+sla_targets:
+  # Fact sheet §1.3, elapsed hours (D-001). Sourced, not new.
+  response_hours: {P1: 1, P2: 2, P3: 4, P4: 8}
+  resolution_hours: {P1: 4, P2: 8, P3: 24, P4: 72}
+
+next_90_days:
+  # Fact sheet §1.7: "Renewal date from 1 October to 29 December 2026 inclusive". Sourced, not new.
+  start: "2026-10-01"
+  end: "2026-12-29"
+
 bq02_near_breach:
   # Fact sheet §1.9: "A ticket not resolved at first line by 50% of its resolution target moves
-  # to an engineer". Targets from §1.3 (elapsed hours, D-001).
+  # to an engineer". Resolution targets: sla_targets above.
   share_of_resolution_target: 0.5
-  resolution_target_hours: {P1: 4, P2: 8, P3: 24, P4: 72}
   # Fact sheet §1.9: "Any P1 still open 2 hours after it was opened is reported to the operations director".
   p1_management_escalation_hours: 2
   definition: >-
