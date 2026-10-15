@@ -466,3 +466,36 @@ tables:
       at_risk: {description: "Active AND tickets rising AND (BL2 or shop spend falling), D-013", type: boolean, personal_data: false, bqs: [BQ-06]}
       annual_contract_value: {description: "Annual value of contract lines still running at the as-of date", type: decimal, personal_data: false, bqs: [BQ-05, BQ-06]}
       retention_rank: {description: "Order for retention effort: at risk first, then score, then annual contract value", type: integer, personal_data: false, bqs: [BQ-06]}
+
+  # ---- review sheet (step 4.2, D-029) ----------------------------------------------------------
+  review_sheet:
+    layer: warehouse
+    grain: one row per review-queue item, plus one row per record for helpdesk spellings too close between candidates
+    lineage: []
+    columns:
+      source_system: {description: "System; copy into config/review_decisions.csv", type: code, personal_data: false, bqs: [BQ-14]}
+      source_key: {description: "Queue item (spelling, shop account) or record ID (ticket); copy as it is", type: code, personal_data: false, bqs: [BQ-14]}
+      decided_account_id: {description: "Left blank for the reviewer: the ACC- ID they decide, or blank for can't decide", type: code, personal_data: false, bqs: [BQ-04, BQ-14]}
+      reviewer: {description: "Left blank: who decided", type: text, personal_data: true, personal_data_note: "the reviewer's name once filled in", bqs: [BQ-14]}
+      decided_on: {description: "Left blank: date of the decision", type: date, personal_data: false, bqs: [BQ-14]}
+      reason: {description: "Left blank: why", type: text, personal_data: false, bqs: [BQ-14]}
+      level: {description: "item (a whole spelling or account) or record (one ticket)", type: code, personal_data: false, bqs: [BQ-14]}
+      queue_item: {description: "The queue item the row belongs to", type: text, personal_data: false, bqs: [BQ-14]}
+      records: {description: "Records the decision would cover", type: integer, personal_data: false, bqs: [BQ-14]}
+      name_as_written: {description: "Customer name as written in the source", type: text, personal_data: false, personal_data_note: "business name", bqs: [BQ-14]}
+      queue_reason: {description: "Why the record was queued", type: text, personal_data: false, bqs: [BQ-14]}
+      candidate_1: {description: "Best-scoring CRM customer", type: code, personal_data: false, bqs: [BQ-14]}
+      candidate_1_name: {description: "Its CRM name", type: text, personal_data: false, bqs: [BQ-14]}
+      score_1: {description: "Its name score, 0-100", type: decimal, personal_data: false, bqs: [BQ-14]}
+      candidate_2: {description: "Second candidate", type: code, personal_data: false, bqs: [BQ-14]}
+      candidate_2_name: {description: "Its CRM name", type: text, personal_data: false, bqs: [BQ-14]}
+      score_2: {description: "Its score", type: decimal, personal_data: false, bqs: [BQ-14]}
+      candidate_3: {description: "Third candidate", type: code, personal_data: false, bqs: [BQ-14]}
+      candidate_3_name: {description: "Its CRM name", type: text, personal_data: false, bqs: [BQ-14]}
+      score_3: {description: "Its score", type: decimal, personal_data: false, bqs: [BQ-14]}
+      email_domains: {description: "Email domains found in the ticket text (domain only, never the address or a name)", type: text, personal_data: false, personal_data_note: "a business domain; the address and person are never shown", bqs: [BQ-14]}
+      first_date: {description: "First ticket or order date", type: date, personal_data: false, bqs: [BQ-14]}
+      last_date: {description: "Last ticket or order date", type: date, personal_data: false, bqs: [BQ-14]}
+      orders_total: {description: "Shop accounts: included order total, duplicates left out", type: decimal, personal_data: false, bqs: [BQ-07, BQ-14]}
+      priority_category: {description: "Ticket records: priority / category", type: text, personal_data: false, bqs: [BQ-14]}
+      names_as_written: {description: "Shop accounts: every company name used on its orders", type: text, personal_data: false, personal_data_note: "business names", bqs: [BQ-14]}

@@ -18,6 +18,8 @@ from pipeline.settings import ROOT, load_settings
 from pipeline.validate.run import Validator, category_lookup, load_rules, validate
 from pipeline.warehouse.dedup import load_config as load_warehouse, run as find_duplicates
 from pipeline.warehouse.load import build as build_warehouse
+from pipeline.warehouse.review_sheet import build_sheet, SHEET_COLUMNS
+from pipeline.ingest.common import write_staging
 import duckdb
 from shop_api.app import create_app
 
@@ -55,6 +57,7 @@ def dirs(tmp_path_factory):
     resolve(s, load_resolution(), validated, resolved)
     find_duplicates(s, load_warehouse(), validated, warehouse)
     build_warehouse(s, load_warehouse(), validated, resolved, warehouse)
+    write_staging(build_sheet(validated, resolved, warehouse / "duplicates.csv"), SHEET_COLUMNS, warehouse / "review_sheet.csv")
     return {"truth": truth, "validated": validated, "resolved": resolved, "warehouse": warehouse}
 
 

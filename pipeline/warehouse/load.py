@@ -81,12 +81,18 @@ class Findings:
 # ---- customers ------------------------------------------------------------------------------
 
 def read_decisions(path: Path) -> list[dict]:
-    rows = _read(path) if path.exists() else []
-    for r in rows:
-        missing = [c for c in DECISION_COLUMNS if not r.get(c, "").strip()]
+    """Rows of config/review_decisions.csv that hold a decision. A row whose decided_account_id
+    is blank means "can't decide" and is skipped: the record stays in the queue (D-029).
+    Extra columns (e.g. evidence copied from the review sheet) are ignored."""
+    out = []
+    for r in (_read(path) if path.exists() else []):
+        if not (r.get("decided_account_id") or "").strip():
+            continue
+        missing = [c for c in DECISION_COLUMNS if not (r.get(c) or "").strip()]
         if missing:
             raise ValueError(f"review decision {r} is missing {missing}")
-    return rows
+        out.append({c: r[c].strip() for c in DECISION_COLUMNS})
+    return out
 
 
 class CustomerLinks:
@@ -96,25 +102,34 @@ class CustomerLinks:
                  units: dict[tuple, str]):
         self.unknown = unknown
         self.by_record = {(r["source_table"], r["source_row"]): r for r in crosswalk}
-        self.decided: dict[tuple, dict] = {}
-        used = set()
         index: dict[tuple, list[tuple]] = defaultdict(list)    # (system, key or unit) -> records
         for k, r in self.by_record.items():
             index[(r["source_system"], r["source_key"])].append(k)
             if k in units:
                 index[(r["source_system"], units[k])].append(k)
+        # A decision names a record (ticket, order or bill ID) or a whole queue item (spelling,
+        # shop account, telecoms account). Whole-item decisions are applied first and per-record
+        # decisions after, so a per-record decision always overrides a whole-item one (D-029).
+        record_keys = {(r["source_system"], r["source_key"]) for r in self.by_record.values()}
+        levels = {"item": {}, "record": {}}
         for i, d in enumerate(decisions):
             if d["decided_account_id"] not in canonical:
                 raise ValueError(f"review decision {i + 1}: {d['decided_account_id']} is not a canonical customer")
-            records = index.get((d["source_system"], d["source_key"]))
+            key = (d["source_system"], d["source_key"])
+            records = index.get(key)
             if not records:
                 raise ValueError(f"review decision {i + 1}: no {d['source_system']} record or queue unit "
                                  f"{d['source_key']!r}")
+            level = "record" if key in record_keys else "item"
             for k in records:
                 if self.by_record[k]["status"] != "review":
                     raise ValueError(f"review decision {i + 1}: {k} is not in the review queue")
-                self.decided[k] = d
-                used.add(i)
+                earlier = levels[level].get(k)
+                if earlier and earlier["decided_account_id"] != d["decided_account_id"]:
+                    raise ValueError(f"review decision {i + 1}: conflicts with another {level} decision for {k}")
+                levels[level][k] = d
+        self.decided = {**levels["item"], **levels["record"]}
+        self.decision_level = {k: ("record" if k in levels["record"] else "item") for k in self.decided}
 
     def link(self, table: str, row: str) -> tuple[str, str, str]:
         """(customer_id, match_status, match_method)"""

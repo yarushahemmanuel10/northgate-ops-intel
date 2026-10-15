@@ -61,6 +61,8 @@ uv run python -m pipeline.warehouse.load       # star schema in data/warehouse/n
 uv run python -m eval.reconciliation           # all five lines against the generator's figures (D-026)
 uv run python -m pipeline.warehouse.export     # Power BI CSVs in data/warehouse/exports/ (D-027)
 uv run python -m eval.at_risk_eval             # at-risk customers found, before and after review (D-028)
+uv run python -m pipeline.warehouse.review_sheet   # review_sheet.csv for the queued records (D-029)
+uv run python -m pipeline.warehouse.apply_review   # apply config/review_decisions.csv and show the effect
 ```
 
 Or run the whole chain in one go, with the shop API running in another terminal:
