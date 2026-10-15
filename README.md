@@ -60,6 +60,7 @@ uv run python -m eval.dedup_eval               # scores by time window, genuine 
 uv run python -m pipeline.warehouse.load       # star schema in data/warehouse/northgate.duckdb (D-025)
 uv run python -m eval.reconciliation           # all five lines against the generator's figures (D-026)
 uv run python -m pipeline.warehouse.export     # Power BI CSVs in data/warehouse/exports/ (D-027)
+uv run python -m eval.at_risk_eval             # at-risk customers found, before and after review (D-028)
 ```
 
 Or run the whole chain in one go, with the shop API running in another terminal:

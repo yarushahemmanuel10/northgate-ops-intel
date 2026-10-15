@@ -26,7 +26,7 @@ import pandas as pd
 import yaml
 
 from pipeline.settings import ROOT, load_settings
-from pipeline.warehouse.views import create_views
+from pipeline.warehouse.views import create_at_risk_view, create_views
 
 DECISION_COLUMNS = ["source_system", "source_key", "decided_account_id", "reviewer", "decided_on", "reason"]
 # findings whose value can't be used: the typed value must be empty in the warehouse
@@ -35,6 +35,11 @@ LINE_IN_DETAIL = re.compile(r"^line (\d+):")
 
 
 def load_config(path: Path = ROOT / "config" / "warehouse.yaml") -> dict:
+    with open(path, encoding="utf-8") as f:
+        return yaml.safe_load(f)
+
+
+def load_at_risk(path: Path = ROOT / "config" / "at_risk.yaml") -> dict:
     with open(path, encoding="utf-8") as f:
         return yaml.safe_load(f)
 
@@ -356,6 +361,7 @@ def build(settings: dict, cfg: dict, validated: Path | None = None, resolved: Pa
         _write(con, "fact_bill", bills, ["source_row"])
         _write(con, "fact_contract_line", contract_lines, ["line_id"])
         create_views(con, cfg)
+        create_at_risk_view(con, load_at_risk(), settings["as_of_moment"][:10])
         summary = unknown_summary(con, unknown)
     finally:
         con.close()

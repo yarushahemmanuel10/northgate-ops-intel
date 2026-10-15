@@ -223,6 +223,14 @@ def test_dim_customer_holds_only_crm_fields(dirs):
                                          "WHERE table_name = 'dim_customer' ORDER BY ordinal_position")]
     assert cols == ["customer_id", "company_name", "sector", "account_manager", "customer_since", "status",
                     "closed_date", "merged_crm_records", "is_unknown"]
-    all_cols = " ".join(r[0] for r in _q(dirs["db"], "SELECT column_name FROM information_schema.columns")).lower()
-    for banned in ("risk", "truth", "look_alike", "lookalike", "planted", "pattern", "switch"):
-        assert banned not in all_cols
+    # generator answer-key fields never appear anywhere in the warehouse
+    cols = _q(dirs["db"], "SELECT table_name, lower(column_name) FROM information_schema.columns")
+    for table, col in cols:
+        for banned in ("truth", "look_alike", "lookalike", "planted", "pattern", "switch", "is_new_in_window",
+                       "shop_annual_budget", "business_lines"):
+            assert banned not in col, f"{table}.{col}"
+        # "risk" only in v_at_risk, which computes it from pipeline data (D-028); never in a base table
+        if "risk" in col:
+            assert table == "v_at_risk", f"{table}.{col}"
+    base = {r[0] for r in _q(dirs["db"], "SELECT table_name FROM information_schema.tables WHERE table_type = 'BASE TABLE'")}
+    assert "v_at_risk" not in base and "dim_customer" in base

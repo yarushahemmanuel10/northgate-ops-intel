@@ -1,0 +1,15 @@
+# At-risk pattern for BQ-06 (step 4.1, D-028). Read by pipeline/warehouse/views.py.
+#
+# The four thresholds are copied from the documented pattern (D-011, D-013, D-016;
+# semantic/metrics.yaml at_risk_pattern). Pipeline code may not read the generator config
+# (D-017), so they live here; tests/test_at_risk.py fails if they ever differ from it.
+quarters:                                  # fact sheet §1.7: last 3 months vs previous 3 months
+  previous: {start: "2026-04-01", end: "2026-06-30"}
+  last: {start: "2026-07-01", end: "2026-09-30"}
+ticket_rise:
+  ratio: 2.0                               # last-quarter tickets at least 2.0 x previous quarter
+  min_last_quarter: 8                      # and at least 8 in the last quarter
+bl2_fall:
+  max_ratio: 0.85                          # last-quarter BL2 bills (net of credit notes) at most 0.85 x previous
+shop_fall:
+  max_ratio: 0.4                           # combined shop spend over all the customer's shop accounts

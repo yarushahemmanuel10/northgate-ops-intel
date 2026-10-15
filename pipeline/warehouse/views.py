@@ -67,3 +67,73 @@ def create_views(con, cfg: dict) -> None:
         UNION ALL
         SELECT business_line, 'included order with no usable total or order date', COUNT(*)
           FROM fact_order WHERE revenue_treatment = 'include' AND (order_total IS NULL OR order_date IS NULL) GROUP BY business_line""")
+
+
+def create_at_risk_view(con, risk: dict, as_of: str) -> None:
+    """v_at_risk: one row per canonical customer with the BQ-06 signals (D-028).
+
+    Signals compare the last quarter with the previous one (config/at_risk.yaml):
+      ticket_rise  tickets opened: last >= ratio x previous and last >= min_last_quarter
+      bl2_fall     BL2 bills not excluded (credit notes included): previous > 0, last/previous <= max
+      shop_fall    BL5 orders 'include', all shop accounts combined: previous > 0, last/previous <= max
+    at_risk = active customer AND ticket_rise AND (bl2_fall OR shop_fall), as in D-013.
+    at_risk_score = number of signals fired (0-3), so the score combines signals and shows them.
+    Ranked for retention by at_risk, score, then annual contract value (BQ-06).
+    The Unknown customer is left out: its records belong to customers not yet identified.
+    """
+    q = risk["quarters"]
+    p0, p1, l0, l1 = q["previous"]["start"], q["previous"]["end"], q["last"]["start"], q["last"]["end"]
+    t, b, s = risk["ticket_rise"], risk["bl2_fall"], risk["shop_fall"]
+    con.execute(f"""
+        CREATE VIEW v_at_risk AS
+        WITH tickets AS (
+            SELECT customer_id,
+                   COUNT(*) FILTER (WHERE opened_date BETWEEN DATE '{p0}' AND DATE '{p1}') AS tickets_prev,
+                   COUNT(*) FILTER (WHERE opened_date BETWEEN DATE '{l0}' AND DATE '{l1}') AS tickets_last
+              FROM fact_ticket GROUP BY customer_id),
+        bl2 AS (
+            SELECT customer_id,
+                   COALESCE(SUM(total) FILTER (WHERE bill_month BETWEEN DATE '{p0}' AND DATE '{p1}'), 0) AS bl2_prev,
+                   COALESCE(SUM(total) FILTER (WHERE bill_month BETWEEN DATE '{l0}' AND DATE '{l1}'), 0) AS bl2_last
+              FROM fact_bill WHERE revenue_treatment <> 'exclude' GROUP BY customer_id),
+        shop AS (
+            SELECT customer_id,
+                   COALESCE(SUM(order_total) FILTER (WHERE order_date BETWEEN DATE '{p0}' AND DATE '{p1}'), 0) AS shop_prev,
+                   COALESCE(SUM(order_total) FILTER (WHERE order_date BETWEEN DATE '{l0}' AND DATE '{l1}'), 0) AS shop_last
+              FROM fact_order WHERE revenue_treatment = 'include' GROUP BY customer_id),
+        contract AS (
+            SELECT customer_id, SUM(annual_value) AS annual_contract_value
+              FROM fact_contract_line
+             WHERE annual_value IS NOT NULL AND (end_date IS NULL OR end_date >= DATE '{as_of}')
+             GROUP BY customer_id),
+        base AS (
+            SELECT d.customer_id, d.company_name, d.status, d.account_manager,
+                   COALESCE(t.tickets_prev, 0) AS tickets_prev, COALESCE(t.tickets_last, 0) AS tickets_last,
+                   COALESCE(b.bl2_prev, 0) AS bl2_prev, COALESCE(b.bl2_last, 0) AS bl2_last,
+                   COALESCE(s.shop_prev, 0) AS shop_prev, COALESCE(s.shop_last, 0) AS shop_last,
+                   COALESCE(c.annual_contract_value, 0) AS annual_contract_value
+              FROM dim_customer d
+              LEFT JOIN tickets t USING (customer_id) LEFT JOIN bl2 b USING (customer_id)
+              LEFT JOIN shop s USING (customer_id) LEFT JOIN contract c USING (customer_id)
+             WHERE NOT d.is_unknown),
+        signals AS (
+            SELECT *,
+                   CASE WHEN tickets_prev > 0 THEN tickets_last / tickets_prev END AS ticket_ratio,
+                   CASE WHEN bl2_prev > 0 THEN CAST(bl2_last AS DOUBLE) / CAST(bl2_prev AS DOUBLE) END AS bl2_ratio,
+                   CASE WHEN shop_prev > 0 THEN CAST(shop_last AS DOUBLE) / CAST(shop_prev AS DOUBLE) END AS shop_ratio,
+                   (tickets_last >= {t['ratio']} * tickets_prev AND tickets_last >= {t['min_last_quarter']}) AS ticket_rise,
+                   (bl2_prev > 0 AND bl2_last <= {b['max_ratio']} * bl2_prev) AS bl2_fall,
+                   (shop_prev > 0 AND shop_last <= {s['max_ratio']} * shop_prev) AS shop_fall
+              FROM base)
+        SELECT customer_id, company_name, status, tickets_prev, tickets_last, ticket_ratio, ticket_rise,
+               bl2_prev, bl2_last, bl2_ratio, bl2_fall, shop_prev, shop_last, shop_ratio, shop_fall,
+               CAST(ticket_rise AS INTEGER) + CAST(bl2_fall AS INTEGER) + CAST(shop_fall AS INTEGER) AS at_risk_score,
+               concat_ws('; ', CASE WHEN ticket_rise THEN 'tickets rising' END,
+                               CASE WHEN bl2_fall THEN 'BL2 spend falling' END,
+                               CASE WHEN shop_fall THEN 'shop spend falling' END) AS signals_fired,
+               (status = 'active' AND ticket_rise AND (bl2_fall OR shop_fall)) AS at_risk,
+               annual_contract_value,
+               ROW_NUMBER() OVER (ORDER BY (status = 'active' AND ticket_rise AND (bl2_fall OR shop_fall)) DESC,
+                                  CAST(ticket_rise AS INTEGER) + CAST(bl2_fall AS INTEGER) + CAST(shop_fall AS INTEGER) DESC,
+                                  annual_contract_value DESC, customer_id) AS retention_rank
+          FROM signals""")

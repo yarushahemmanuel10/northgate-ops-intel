@@ -439,3 +439,30 @@ tables:
       business_line: {description: "Business line affected", type: code, personal_data: false, bqs: [BQ-07, BQ-14]}
       reason: {description: "Which value is unusable", type: text, personal_data: false, bqs: [BQ-14]}
       records: {description: "Number of records left out", type: integer, personal_data: false, bqs: [BQ-14]}
+
+  # ---- at-risk view (step 4.1, D-028) ----------------------------------------------------------
+  v_at_risk:
+    layer: warehouse
+    grain: one row per canonical customer (Unknown left out), with the BQ-06 signals for the last vs previous quarter
+    lineage: []
+    columns:
+      customer_id: {description: "Canonical customer", type: code, personal_data: false, bqs: [BQ-06]}
+      company_name: {description: "Business name", type: text, personal_data: false, personal_data_note: "business name", bqs: [BQ-06]}
+      status: {description: "'active' or 'closed'; only active customers can be at risk", type: code, personal_data: false, bqs: [BQ-06]}
+      tickets_prev: {description: "Tickets opened April-June 2026", type: integer, personal_data: false, bqs: [BQ-06]}
+      tickets_last: {description: "Tickets opened July-September 2026", type: integer, personal_data: false, bqs: [BQ-06]}
+      ticket_ratio: {description: "tickets_last / tickets_prev; empty when tickets_prev is 0", type: decimal, personal_data: false, bqs: [BQ-06]}
+      ticket_rise: {description: "Signal: last >= 2.0 x previous and last >= 8 (config/at_risk.yaml)", type: boolean, personal_data: false, bqs: [BQ-06]}
+      bl2_prev: {description: "BL2 bills April-June 2026, net of credit notes", type: decimal, personal_data: false, bqs: [BQ-06]}
+      bl2_last: {description: "BL2 bills July-September 2026, net of credit notes", type: decimal, personal_data: false, bqs: [BQ-06]}
+      bl2_ratio: {description: "bl2_last / bl2_prev; empty when bl2_prev is 0", type: decimal, personal_data: false, bqs: [BQ-06]}
+      bl2_fall: {description: "Signal: bl2_prev > 0 and bl2_last <= 0.85 x bl2_prev", type: boolean, personal_data: false, bqs: [BQ-06]}
+      shop_prev: {description: "Included shop orders April-June 2026, all the customer's shop accounts", type: decimal, personal_data: false, bqs: [BQ-06]}
+      shop_last: {description: "Included shop orders July-September 2026", type: decimal, personal_data: false, bqs: [BQ-06]}
+      shop_ratio: {description: "shop_last / shop_prev; empty when shop_prev is 0", type: decimal, personal_data: false, bqs: [BQ-06]}
+      shop_fall: {description: "Signal: shop_prev > 0 and shop_last <= 0.4 x shop_prev", type: boolean, personal_data: false, bqs: [BQ-06]}
+      at_risk_score: {description: "Number of signals fired, 0-3", type: integer, personal_data: false, bqs: [BQ-06]}
+      signals_fired: {description: "The signals that fired, in words", type: text, personal_data: false, bqs: [BQ-06]}
+      at_risk: {description: "Active AND tickets rising AND (BL2 or shop spend falling), D-013", type: boolean, personal_data: false, bqs: [BQ-06]}
+      annual_contract_value: {description: "Annual value of contract lines still running at the as-of date", type: decimal, personal_data: false, bqs: [BQ-05, BQ-06]}
+      retention_rank: {description: "Order for retention effort: at risk first, then score, then annual contract value", type: integer, personal_data: false, bqs: [BQ-06]}
