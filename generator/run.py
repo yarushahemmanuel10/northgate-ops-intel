@@ -33,7 +33,7 @@ FILES_TABLE = """| Path | Committed? | What it is | Produced by |
 | `data/staging/` | No | Ingested text-only tables with lineage | `python -m pipeline.ingest.run` |
 | `data/validated/` | No | Typed tables and validation findings | `python -m pipeline.validate.run` |
 | `data/resolved/` | No | Crosswalk of every source record to a CRM account, and the review queue | `python -m pipeline.resolve.run` |
-| `data/warehouse/` | No | Duplicate marks and the DuckDB star schema (`northgate.duckdb`) | `python -m pipeline.warehouse.dedup`, then `python -m pipeline.warehouse.load` |
+| `data/warehouse/` | No | Duplicate marks, the DuckDB star schema (`northgate.duckdb`) and Power BI CSV exports in `exports/` | `python -m pipeline.run` (whole chain) |
 | `.env` | No | API key (never committed) | You |
 
 Everything under `data/` is reproduced exactly from the seed in `config/generator.yaml`."""

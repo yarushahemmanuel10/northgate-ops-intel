@@ -29,24 +29,33 @@ def create_views(con, cfg: dict) -> None:
           JOIN v_window_month w
             ON c.contract_start <= last_day(w.month) AND (c.end_date IS NULL OR c.end_date >= w.month)
          WHERE b.modelled AND c.annual_value IS NOT NULL AND c.contract_start IS NOT NULL""")
+    # Each row is computed exactly and the same on every run: amounts are added as DECIMAL and
+    # modelled revenue is divided by 12 once per row. Adding DOUBLEs in parallel would make the
+    # last binary digit depend on thread order (found by the rebuild-twice test, D-027).
     con.execute("""
         CREATE VIEW v_revenue AS
         WITH rows AS (
-            SELECT customer_id, business_line, month, revenue FROM v_contract_revenue_month
+            SELECT c.customer_id, c.business_line, w.month, SUM(c.annual_value) / 12 AS revenue, COUNT(*) AS records
+              FROM fact_contract_line c
+              JOIN dim_business_line b USING (business_line)
+              JOIN v_window_month w
+                ON c.contract_start <= last_day(w.month) AND (c.end_date IS NULL OR c.end_date >= w.month)
+             WHERE b.modelled AND c.annual_value IS NOT NULL AND c.contract_start IS NOT NULL
+             GROUP BY c.customer_id, c.business_line, w.month
             UNION ALL
-            SELECT customer_id, business_line, bill_month, CAST(total AS DOUBLE)
+            SELECT customer_id, business_line, bill_month, CAST(SUM(total) AS DOUBLE), COUNT(*)
               FROM fact_bill
              WHERE revenue_treatment <> 'exclude' AND total IS NOT NULL AND bill_month IS NOT NULL
+             GROUP BY customer_id, business_line, bill_month
             UNION ALL
-            SELECT customer_id, business_line, CAST(date_trunc('month', order_date) AS DATE), CAST(order_total AS DOUBLE)
+            SELECT customer_id, business_line, CAST(date_trunc('month', order_date) AS DATE),
+                   CAST(SUM(order_total) AS DOUBLE), COUNT(*)
               FROM fact_order
-             WHERE revenue_treatment = 'include' AND order_total IS NOT NULL AND order_date IS NOT NULL)
+             WHERE revenue_treatment = 'include' AND order_total IS NOT NULL AND order_date IS NOT NULL
+             GROUP BY customer_id, business_line, CAST(date_trunc('month', order_date) AS DATE))
         SELECT r.customer_id, r.business_line, r.month, strftime(r.month, '%Y-%m') AS year_month,
-               SUM(r.revenue) AS revenue,
-               CASE WHEN b.modelled THEN 'modelled' ELSE 'measured' END AS revenue_basis,
-               COUNT(*) AS records
-          FROM rows r JOIN dim_business_line b USING (business_line)
-         GROUP BY r.customer_id, r.business_line, r.month, b.modelled""")
+               r.revenue, CASE WHEN b.modelled THEN 'modelled' ELSE 'measured' END AS revenue_basis, r.records
+          FROM rows r JOIN dim_business_line b USING (business_line)""")
     con.execute("""
         CREATE VIEW v_revenue_excluded AS
         SELECT business_line, 'contract line with no usable annual value or start date' AS reason, COUNT(*) AS records

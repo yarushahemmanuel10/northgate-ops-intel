@@ -59,6 +59,13 @@ uv run python -m pipeline.warehouse.dedup      # duplicate orders and bills mark
 uv run python -m eval.dedup_eval               # scores by time window, genuine repeats, BL5 before and after
 uv run python -m pipeline.warehouse.load       # star schema in data/warehouse/northgate.duckdb (D-025)
 uv run python -m eval.reconciliation           # all five lines against the generator's figures (D-026)
+uv run python -m pipeline.warehouse.export     # Power BI CSVs in data/warehouse/exports/ (D-027)
+```
+
+Or run the whole chain in one go, with the shop API running in another terminal:
+
+```
+uv run python -m pipeline.run                  # ingest, validate, resolve, dedup, load, export + summary
 ```
 
 ## What is committed and what is generated
@@ -78,7 +85,7 @@ uv run python -m eval.reconciliation           # all five lines against the gene
 | `data/staging/` | No | Ingested text-only tables with lineage | `python -m pipeline.ingest.run` |
 | `data/validated/` | No | Typed tables and validation findings | `python -m pipeline.validate.run` |
 | `data/resolved/` | No | Crosswalk of every source record to a CRM account, and the review queue | `python -m pipeline.resolve.run` |
-| `data/warehouse/` | No | Duplicate marks and the DuckDB star schema (`northgate.duckdb`) | `python -m pipeline.warehouse.dedup`, then `python -m pipeline.warehouse.load` |
+| `data/warehouse/` | No | Duplicate marks, the DuckDB star schema (`northgate.duckdb`) and Power BI CSV exports in `exports/` | `python -m pipeline.run` (whole chain) |
 | `.env` | No | API key (never committed) | You |
 
 Everything under `data/` is reproduced exactly from the seed in `config/generator.yaml`.

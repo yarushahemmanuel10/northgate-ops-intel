@@ -11,6 +11,7 @@ Evaluation code: it may use the generator and its answer key; the pipeline may n
 from __future__ import annotations
 
 import datetime as dt
+import math
 from pathlib import Path
 
 import duckdb
@@ -43,9 +44,10 @@ def generator_modelled() -> dict[str, tuple[float, float]]:
 def warehouse_revenue(db: Path) -> dict:
     con = duckdb.connect(str(db), read_only=True)
     try:
-        by_line = dict(con.execute("SELECT business_line, SUM(revenue) FROM v_revenue GROUP BY 1").fetchall())
-        known = dict(con.execute("SELECT business_line, SUM(revenue) FROM v_revenue "
-                                 "WHERE customer_id <> 'UNKNOWN' GROUP BY 1").fetchall())
+        rows = con.execute("SELECT business_line, customer_id, revenue FROM v_revenue").fetchall()
+        lines = sorted({r[0] for r in rows})
+        by_line = {bl: math.fsum(r[2] for r in rows if r[0] == bl) for bl in lines}             # order-independent
+        known = {bl: math.fsum(r[2] for r in rows if r[0] == bl and r[1] != "UNKNOWN") for bl in lines}
         basis = dict(con.execute("SELECT DISTINCT business_line, revenue_basis FROM v_revenue").fetchall())
         excluded = con.execute("SELECT business_line, reason, records FROM v_revenue_excluded").fetchall()
     finally:
