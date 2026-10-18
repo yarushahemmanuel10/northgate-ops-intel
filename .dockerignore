@@ -1,0 +1,14 @@
+# Never sent to the Docker build (step 6.5, D-046)
+.env
+.env.*
+!.env.example
+data/
+.venv/
+.venv-linux/
+.git/
+**/__pycache__/
+.pytest_cache/
+.DS_Store
+tests/
+eval/
+docs/

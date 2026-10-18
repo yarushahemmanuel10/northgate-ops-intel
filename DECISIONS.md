@@ -593,3 +593,39 @@ Decided by the project author after D-039. These are general rules, not fixes fo
   The pipeline-run and review tests check one `export_written` + `pipeline_run` per run and one `review_decisions_applied` per apply.
 - **Alternatives**: a DuckDB table (single writer, and the dashboard would need write access); Python `logging` to a text file (no tamper evidence); signing entries with a key (key management with no sign-in to tie it to); no dashboard page for the log for now, because the dashboard reads warehouse views only. The CLI is the viewer.
 
+## D-046: Docker images and compose, separate data and least privilege (step 6.5)
+- **Images** (`Dockerfile`, one base, two targets):
+  - **Base:** `python:3.12-slim-bookworm`, pinned by its multi-architecture index digest `sha256:34386ef0cb081344d7ec1c103ba398e6e9f64e9ab3a1509accc92a4e24a07258`. This was read from Docker Hub on 2026-10-18 (image last updated 2026-10-06); its linux/amd64 entry is `sha256:2ed6491b…4179d`, as the author's Intel Mac needs. The read was cross-checked twice, and the first command for the author confirms it with `docker buildx imagetools inspect`.
+  - **Dependencies:** `uv==0.12.13` (the version used to build `uv.lock`) is installed with pip, and dependencies come from `uv.lock` with `uv sync --frozen --no-dev`. This avoids a second base image.
+  - **User:** both final images run as user `app` (uid 10001).
+  - **`pipeline` target:** generator, mock shop API, pipeline, config, semantic layer, knowledge base.
+  - **`dashboard` target:** only `pipeline/`, `dashboard/`, `.streamlit/`, `semantic/` and the six config files the dashboard reads. No generator code, no `config/generator.yaml`, no shop API, eval or tests.
+- **Compose** (`docker-compose.yml`):
+
+  | Service | Runs | Mounts |
+  |---|---|---|
+  | `generate` | one-off: synthetic data | `work` |
+  | `shop_api` | mock shop API; not published; health check on `/health` | `work`, read-only |
+  | `pipeline` | one-off: the pipeline, with `NORTHGATE_SHOP_API_URL=http://shop_api:8765` | `work` + `warehouse` + `alerts` + `audit` |
+  | `dashboard` | Streamlit, published on `127.0.0.1:8501` only | `warehouse` (read-only), `alerts` (read-only), `audit` |
+
+  - **Startup order:** `shop_api` waits for `generate` to finish successfully; `pipeline` waits for `shop_api` to be healthy.
+  - **Data:** all data is in four named Docker volumes (`work`, `warehouse`, `alerts`, `audit`), never the host `data/` folder, so the warehouse and audit log on the Mac are never overwritten.
+  - **Dashboard isolation:** the dashboard has no `work` volume, so it cannot see `raw/`, `clean/` or `ground_truth/`. DuckDB was checked to open a database read-only from a read-only folder.
+- **Secrets**: `.dockerignore` excludes `.env`, `.env.*` (except `.env.example`), `data/`, virtual environments, `.git`, tests, eval and docs. No image copies `.env`. The assistant is not a compose service; it can be run with `docker compose run --env-file .env …`, so the key is passed only at run time.
+- **Settings**: `NORTHGATE_SHOP_API_URL` overrides the shop API address (tested); without it, nothing changes.
+- **Tests** (`tests/test_docker.py`, 9, static, because Docker cannot run in the build workspace):
+  - the digest pin and pinned uv;
+  - a non-root `USER` in both images;
+  - `.env` and `data/` never in a build context or a `COPY`;
+  - the dashboard image has no generator, generator config, shop API, eval or tests;
+  - named volumes only, and the dashboard's exact mounts;
+  - ports on 127.0.0.1 only;
+  - health-check-gated startup order;
+  - the settings override;
+  - every dashboard page run from exactly the files the dashboard stage copies (read from the `Dockerfile`), so a missing file fails the test.
+
+  The images themselves are built and run on the author's Mac.
+- **Alternatives**: bind-mounting `data/` (simplest, but containers could overwrite the host warehouse and the dashboard would see the answer keys); one image for everything (the dashboard would carry the generator and its config); the official `ghcr.io/astral-sh/uv` image for uv (a second base image to pin); publishing the shop API port (not needed outside compose).
+- **Limits**: the containers' generated data is identical to the host's (seeded generator), but separate. Anyone who can run `docker` on the Mac can read the volumes. The images are not scanned for vulnerabilities in this prototype.
+

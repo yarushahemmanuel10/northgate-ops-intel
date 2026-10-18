@@ -1,0 +1,60 @@
+# Northgate prototype in Docker (step 6.5, D-046).
+# All data lives in named Docker volumes, never in the data/ folder on the host.
+#   docker compose build
+#   docker compose run --rm pipeline      # generates the synthetic data, starts shop_api, runs the pipeline
+#   docker compose up dashboard           # http://127.0.0.1:8501
+name: northgate
+
+x-pipeline-image: &pipeline-image
+  build: {context: ., target: pipeline}
+  image: northgate-pipeline:local
+
+services:
+  generate:                               # one-off: synthetic sources, answer keys and clean data
+    <<: *pipeline-image
+    command: ["python", "-m", "generator.run"]
+    volumes:
+      - work:/app/data
+
+  shop_api:                               # mock shop API, reachable only inside the compose network
+    <<: *pipeline-image
+    command: ["uvicorn", "shop_api.app:app", "--host", "0.0.0.0", "--port", "8765"]
+    volumes:
+      - work:/app/data:ro
+    depends_on:
+      generate: {condition: service_completed_successfully}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+
+  pipeline:                               # one-off: ingest -> ... -> alerts, KB index, audit head
+    <<: *pipeline-image
+    command: ["python", "-m", "pipeline.run"]
+    environment:
+      NORTHGATE_SHOP_API_URL: http://shop_api:8765
+    volumes:
+      - work:/app/data
+      - warehouse:/app/data/warehouse
+      - alerts:/app/data/alerts
+      - audit:/app/data/audit
+    depends_on:
+      shop_api: {condition: service_healthy}
+
+  dashboard:                              # least privilege: warehouse and alerts read-only, audit for its entries
+    build: {context: ., target: dashboard}
+    image: northgate-dashboard:local
+    ports:
+      - "127.0.0.1:8501:8501"
+    volumes:
+      - warehouse:/app/data/warehouse:ro
+      - alerts:/app/data/alerts:ro
+      - audit:/app/data/audit
+
+volumes:
+  work: {}         # raw, staging, validated, resolved, clean, ground_truth, retrieval, assistant
+  warehouse: {}
+  alerts: {}
+  audit: {}

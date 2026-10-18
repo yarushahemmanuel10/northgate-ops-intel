@@ -135,6 +135,18 @@ Dashboard page views and refusals, demo-role changes, assistant questions (store
 - **Roles and sessions, not people.** There is no sign-in, so the log records the demo role picked in the sidebar and a random session ID, never who was at the keyboard.
 - **Detects partial edits only.** Someone with write access to both files could rewrite the whole log consistently; production would use write-once storage (D-045).
 
+## Running in Docker (Phase 6)
+
+```
+docker compose build                     # two images: northgate-pipeline:local, northgate-dashboard:local
+docker compose run --rm pipeline         # generate data, start the shop API (health-checked), run the pipeline
+docker compose up -d dashboard           # http://127.0.0.1:8501
+docker compose run --rm --no-deps pipeline python -m pipeline.audit.verify
+docker compose down                      # stop; add -v to delete the Docker volumes as well
+```
+
+All data in Docker lives in named volumes (`work`, `warehouse`, `alerts`, `audit`), never in the `data/` folder on the host. The dashboard container gets only the warehouse and alerts (read-only) and the audit log, has no generator code or answer keys, runs as a non-root user and is published on 127.0.0.1 only. `.env` is never copied into an image (D-046).
+
 ## What is committed and what is generated
 
 <!-- files-table:start -->
