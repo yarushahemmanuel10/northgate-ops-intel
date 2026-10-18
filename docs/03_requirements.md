@@ -124,6 +124,12 @@ of scope.
 - **Answered when:** the assistant answers from current articles and similar past tickets,
   cites the ids it used, never cites a superseded article, and abstains when retrieval is
   weak. Measured by the evaluation set in Phase 5.
+- **Status (2026-10-18): partly met.** Knowledge-base and data questions are met: the frozen
+  assistant passed 26/28 tuning and 13/14 held-out questions, cites the ids it used, never cited
+  KB-0026 and declines when evidence is weak (D-041, D-042). Similar-past-ticket search is
+  **deferred**: ticket text is masked from Phase 6 (D-043) and goes to the warehouse, exports and
+  dashboard only. Adding ticket search would change the frozen assistant after its held-out
+  evaluation, leaving no unseen questions to test it, so it is recorded as future work.
 
 ### BQ-12 — Is the knowledge base being used, and which articles need attention?
 - **Asked by:** service desk lead
@@ -201,7 +207,7 @@ Filled in as later phases are built. A blank cell after its phase is finished is
 | BQ-08 | 1, 2, 5 | | | | |
 | BQ-09 | 2, 3 | | | | |
 | BQ-10 | 3 | | | | |
-| BQ-11 | 5 | | | | |
+| BQ-11 | 5 | | | `search_knowledge_base` (D-035, D-040) + 13 data tools (D-036); past-ticket search deferred (D-043) | T01–T20, DT01–DT08 (tuning); H01–H10, DH01–DH04 (held-out) — **partly met** |
 | BQ-12 | 3 | | | | |
 | BQ-13 | 1, 2 | | | | |
 | BQ-14 | 1, 2, 4 | | | | |

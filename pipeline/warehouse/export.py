@@ -8,7 +8,7 @@ as the header), ISO dates and timestamps, '.' as the decimal mark, no thousands 
 empty for missing values, rows in a fixed order. Revenue keeps full precision so totals match
 the reconciliation. The synthetic-data notice is in README.txt beside the files.
 
-ticket_text is never exported: it holds personal data and waits for Phase 6 masking.
+ticket_text is never exported: it holds personal data. ticket_text_masked (step 6.1, D-043) is exported instead.
 """
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ import duckdb
 from pipeline.settings import load_settings
 from pipeline.warehouse.load import load_config
 
-NOT_EXPORTED = {"ticket_text"}       # personal data: only after Phase 6 masking
+NOT_EXPORTED = {"ticket_text"}       # personal data; the masked copy, ticket_text_masked, is exported
 README = """SYNTHETIC DATA - fictional company Northgate IT Services Ltd; all names and figures invented.
 No connection to any real company of a similar name.
 
@@ -28,7 +28,7 @@ Encoding UTF-8; first line is the header; dates YYYY-MM-DD, timestamps YYYY-MM-D
 decimal mark '.', no thousands separators; an empty field is a missing value.
 Revenue (v_revenue, v_contract_revenue_month) is at full precision: round only in visuals.
 Relationships between the files: docs/powerbi_relationships.md.
-ticket_text is not exported: it holds personal data and is available only after Phase 6 masking.
+ticket_text is not exported: it holds personal data. Use ticket_text_masked, where names, phone numbers, emails and business names are replaced by placeholders.
 Regenerate with: python -m pipeline.run
 """
 

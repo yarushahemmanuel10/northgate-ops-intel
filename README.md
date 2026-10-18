@@ -74,6 +74,7 @@ uv run python -m pipeline.assistant.ask "How many contract lines renew in the ne
 uv run python -m pipeline.assistant.ask --spend    # total logged API spend against the £5 limit
 uv run python -m eval.assistant_eval               # score the assistant on the 28 tuning questions (D-038), about 3p
 uv run python -m eval.assistant_eval --cache-only  # re-score from the response cache, no API calls
+uv run python -m eval.masking_eval                 # ticket-text masking on the dev half: recall and false masks (D-043)
 ```
 
 Or run the whole chain in one go, with the shop API running in another terminal:

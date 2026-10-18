@@ -26,6 +26,7 @@ import pandas as pd
 import yaml
 
 from pipeline.settings import ROOT, load_settings
+from pipeline.mask.run import create_masked
 from pipeline.warehouse.kpis import create_dashboard_views, create_kpi_views, load_thresholds
 from pipeline.warehouse.views import create_at_risk_view, create_views
 
@@ -456,6 +457,7 @@ def build(settings: dict, cfg: dict, validated: Path | None = None, resolved: Pa
         _write(con, "dq_rejected_row", rejected, ["source_system", "source_file", "source_row"])
         _write(con, "dq_source_count", source_counts, ["source_table"])
         _write(con, "dq_review_record", review_records, ["source_table", "source_key"])
+        create_masked(con)                     # ticket_text_masked + v_ticket_masked (step 6.1, D-043)
         create_views(con, cfg)
         create_at_risk_view(con, load_at_risk(), settings["as_of_moment"][:10])
         create_kpi_views(con, load_thresholds(), settings["as_of_moment"][:10])

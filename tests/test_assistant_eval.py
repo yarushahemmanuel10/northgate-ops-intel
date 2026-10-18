@@ -98,3 +98,9 @@ def test_heldout_guard_checks_tag_frozen_code_and_runs_once(monkeypatch, tmp_pat
         assert ev.heldout_refusal(False, good_out) is None
     else:
         assert "already been made" in ev.heldout_refusal(False, good_out)
+
+
+def test_frozen_assistant_code_is_unchanged_since_the_tag():
+    """D-041: no prompt, retrieval or tool changes after the assistant was frozen and evaluated."""
+    r = subprocess.run(["git", "diff", "--quiet", "assistant-frozen", "--", *ev.FROZEN_PATHS], cwd=ROOT)
+    assert r.returncode == 0, f"frozen assistant code changed since assistant-frozen: {ev.FROZEN_PATHS}"

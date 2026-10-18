@@ -45,7 +45,7 @@ from pipeline.tools import data as data_tools
 
 RESULTS = ROOT / "eval" / "results"
 APPROVAL = Path(os.environ.get("NORTHGATE_HELDOUT_APPROVAL", ROOT / "eval" / "heldout_approval.yaml"))
-FROZEN_PATHS = ["pipeline", "config"]              # assistant, retrieval, tools and their settings (D-041)
+FROZEN_PATHS = ["pipeline/assistant", "pipeline/retrieval", "pipeline/tools", "config/assistant.yaml"]   # D-041
 RUN_LIMIT_GBP = 0.50
 ROUGH = {"must_include", "no_recommendation"}
 # Fixed before the first tuning run (D-038). Lower-case substrings; rough by design.

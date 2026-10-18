@@ -57,3 +57,13 @@ with st.expander("Tickets behind each month"):
                        "FROM v_kpi_bq01_sla_monthly WHERE priority <> 'none' ORDER BY year_month, priority"),
                  hide_index=True, width="stretch",
                  column_config={"Within target": st.column_config.NumberColumn(format="percent")})
+
+st.subheader("Recent tickets, personal data masked")
+st.caption("Ticket text with names, phone numbers, e-mail addresses and business names replaced by placeholders "
+           "such as [NAME] and [PHONE] (step 6.1, D-043). The original text never leaves the warehouse.")
+st.dataframe(query("SELECT ticket_id AS \"Ticket\", customer_id AS \"Customer\", priority AS \"Priority\", "
+                   "category AS \"Category\", opened_at AS \"Opened\", problem_text_masked AS \"Problem (masked)\", "
+                   "resolution_text_masked AS \"Resolution (masked)\" FROM v_ticket_masked "
+                   "ORDER BY opened_at DESC, ticket_id LIMIT 20"),
+             hide_index=True, width="stretch")
+

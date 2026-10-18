@@ -487,3 +487,35 @@ Decided by the project author after D-039. These are general rules, not fixes fo
   - **Rough keyword checks**: must-include misses are a mix of paraphrases and omissions, and were not used for scoring.
 - API spend for the whole of step 5.4–5.5: 146 calls, 722,329 tokens in, 25,296 out, £0.0849 of the £5 limit.
 
+## D-043: Masking personal data in ticket text, rules first, measured on held-out tickets (step 6.1)
+- **Choice**: `pipeline/mask/text.py` masks ticket text with general rules and the warehouse's own lists; nothing comes from the generator (no faker lists, no reserved test prefixes, no `.example` suffix; a test checks the code).
+  - **EMAIL**: any `local@domain.tld`.
+  - **PHONE**: UK numbers in general, 0 or +44 then 9–10 more digits, with spaces, hyphens or brackets; `+44 (0)…` is normalised.
+  - **NAME**, from four sources:
+    - staff names from the warehouse (account managers, agents);
+    - one to three capitalised words after a general context cue ("contact", "spoke to", "email", "ask for", "reported by", "dear", a title…), needing two words unless after a title;
+    - the person named by a `first.last@`/`first_last@` address;
+    - every other occurrence of a name found in the same text.
+  - **CUSTOMER**: business names from `dim_customer` and the review-queue spellings.
+  - Overlaps keep the longest span. A general list of product, team and common words is never a name.
+- **Where it goes**: `create_masked` runs inside the warehouse build and writes `ticket_text_masked` (masked description and notes, plus counts per type) and the view `v_ticket_masked`.
+  - The masked table is exported; `ticket_text` stays in the warehouse only, still never exported (tested).
+  - The dashboard's Service page shows the 20 latest tickets from `v_ticket_masked`. Its columns are named `problem_text_masked`/`resolution_text_masked`, so the dashboard test that bans "description" and "resolution_notes" still holds.
+  - The assistant does not read ticket text (6.2 below).
+- **Evaluation** (`eval/masking_eval.py`; only `eval/` reads the answer key):
+  - **Split:** tickets go to dev or held-out by the parity of an MD5 hash of the ticket ID, as in entity resolution.
+  - **Truth:** the QI-07 `pii_span` entries, 579 spans in descriptions (290 names, 186 phones, 103 emails).
+  - **Scoring:** a true span is caught when a mask overlaps it; a false mask overlaps no true span.
+  - **Held-out:** `--final` scores the held-out half once and refuses a second run. Tests use the dev half only.
+- **Tuning on dev only** (746 tickets, 277 spans):
+  - First dev run: names 136/138, phones 91/91, emails 48/48, no false masks.
+  - Two general fixes, each found on dev and recorded here:
+    1. Surnames with Mc/Mac/O' were split ("Jennifer McDonald" missed); the token pattern now takes the prefix.
+    2. Days and months blocked a name ("June Cross" missed); now they are only trimmed from the end ("Contact Sam Singh Monday"), since April, May and June are also first names.
+  - After: 277/277, no false masks, no masks in resolution notes, no business names in ticket text.
+- **Disclosure**: before the split I looked at the answer key's overall QI-07 counts (290/186/103) to learn its format. After building, the mask counts over all tickets came out 290/186/103 too. That is a hint about the held-out half (not a scored comparison) and should be read alongside the held-out result below.
+- **Caveat for the write-up**: the synthetic personal data is far easier to catch than real data. It appears in a few fixed phrasings ("Contact … on …", "Spoke to …", "Please email … at …"), in standard formats, with no typos, nicknames, initials, foreign scripts or addresses. A high score here does not predict real-world recall; real deployment would need a reviewed sample and probably a trained recogniser.
+- **6.2 decision** (project author): masked tickets go to the warehouse, exports and dashboard only. Assistant past-ticket search is future work, because adding it would change the frozen assistant after its held-out evaluation. BQ-11 is recorded as **partly met** in `docs/03_requirements.md`: knowledge-base and data questions met, past-ticket search deferred.
+- **Held-out guard narrowed** (evaluation code): `--heldout` compared all of `pipeline/` and `config/` with the frozen tag, which Phase 6 work legitimately changes. It now checks exactly the frozen paths from D-041 (`pipeline/assistant`, `pipeline/retrieval`, `pipeline/tools`, `config/assistant.yaml`), and a new test fails if any of them differ from `assistant-frozen`.
+- **Alternatives**: Presidio or spaCy NER (large models and dependencies, and hard to explain line by line); masking only by fixed patterns, without cues (misses names); hashing names instead of placeholders (reversible by dictionary attack, and no more useful here).
+

@@ -401,6 +401,33 @@ tables:
       end_date_flag: {description: "Why end_date is unusable, if it is", type: text, personal_data: false, bqs: [BQ-14]}
 
   # ---- revenue views (step 3.4, D-026) --------------------------------------------------------
+  ticket_text_masked:
+    layer: warehouse
+    grain: one row per ticket; ticket_text with personal data replaced by [NAME], [PHONE], [EMAIL], [CUSTOMER] (D-043)
+    lineage: []
+    columns:
+      ticket_id: {description: "Ticket ID", type: code, personal_data: false, bqs: [BQ-11]}
+      description_masked: {description: "Problem description, masked", type: text, personal_data: false, personal_data_note: "masked by general rules; recall measured on held-out tickets (D-043), so a missed span is possible", bqs: [BQ-11]}
+      resolution_notes_masked: {description: "Resolution notes, masked", type: text, personal_data: false, personal_data_note: "masked by general rules (D-043)", bqs: [BQ-11]}
+      names_masked: {description: "Names replaced in this ticket", type: integer, personal_data: false, bqs: [BQ-14]}
+      phones_masked: {description: "Phone numbers replaced", type: integer, personal_data: false, bqs: [BQ-14]}
+      emails_masked: {description: "Email addresses replaced", type: integer, personal_data: false, bqs: [BQ-14]}
+      customers_masked: {description: "Business names replaced", type: integer, personal_data: false, bqs: [BQ-14]}
+
+  v_ticket_masked:
+    layer: warehouse
+    grain: one row per ticket, with its masked text, for the dashboard
+    lineage: []
+    columns:
+      ticket_id: {description: "Ticket ID", type: code, personal_data: false, bqs: [BQ-11]}
+      customer_id: {description: "Canonical customer, or UNKNOWN", type: code, personal_data: false, bqs: [BQ-11]}
+      priority: {description: "P1 to P4", type: code, personal_data: false, bqs: [BQ-11]}
+      category: {description: "Canonical category", type: code, personal_data: false, bqs: [BQ-11]}
+      opened_at: {description: "Opened", type: timestamp, personal_data: false, bqs: [BQ-11]}
+      closed_at: {description: "Closed", type: timestamp, personal_data: false, bqs: [BQ-11]}
+      problem_text_masked: {description: "Problem description, masked", type: text, personal_data: false, personal_data_note: "masked (D-043)", bqs: [BQ-11]}
+      resolution_text_masked: {description: "Resolution notes, masked", type: text, personal_data: false, personal_data_note: "masked (D-043)", bqs: [BQ-11]}
+
   v_window_month:
     layer: warehouse
     grain: one row per month of the data window (April 2025 - September 2026)
