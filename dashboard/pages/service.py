@@ -8,7 +8,7 @@ import streamlit as st  # noqa: E402
 
 from dashboard.common import page_header, query  # noqa: E402
 
-page_header("Service")
+page_header("Service", "service")
 s = query("SELECT * FROM v_kpi_bq02_summary").iloc[0]
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("About to breach (live risk)", int(s["about_to_breach"]))

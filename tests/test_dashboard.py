@@ -48,9 +48,10 @@ def pages(db):
     import os
     os.environ["NORTHGATE_DB"] = str(db)
     os.environ["NORTHGATE_ALERTS_DB"] = str(db.parent / "alerts.duckdb")
+    os.environ["NORTHGATE_ROLE"] = "operations_director"          # every page, as before roles (D-044)
     out = {p: AppTest.from_file(str(DASH / "pages" / f"{p}.py"), default_timeout=60).run() for p in PAGES}
     yield out
-    del os.environ["NORTHGATE_DB"], os.environ["NORTHGATE_ALERTS_DB"]
+    del os.environ["NORTHGATE_DB"], os.environ["NORTHGATE_ALERTS_DB"], os.environ["NORTHGATE_ROLE"]
 
 
 def _view(db, sql):
@@ -61,13 +62,11 @@ def _view(db, sql):
         con.close()
 
 
-def test_every_page_loads_with_banner_as_of_date_and_role_placeholder(pages):
+def test_every_page_loads_with_banner_as_of_date_and_role(pages):
     for name, at in pages.items():
         assert not at.exception, (name, [e.value for e in at.exception])
         assert any("Synthetic data" in w.value for w in at.warning), name
-        assert any("30 September 2026" in c.value for c in at.caption), name
-        role = at.sidebar.selectbox[0]
-        assert role.label == "Role" and role.disabled, name
+        assert any("30 September 2026" in c.value and "demo role: Operations director" in c.value for c in at.caption), name
 
 
 def test_numbers_on_screen_come_from_the_views(pages, db):

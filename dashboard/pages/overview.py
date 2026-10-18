@@ -8,7 +8,7 @@ import streamlit as st  # noqa: E402
 
 from dashboard.common import money, page_header, query  # noqa: E402
 
-page_header("Overview")
+page_header("Overview", "overview")
 tot = query("SELECT * FROM v_dash_revenue_total").iloc[0]
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("Revenue, data window", money(tot["revenue_total"]))

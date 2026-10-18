@@ -528,3 +528,36 @@ Decided by the project author after D-039. These are general rules, not fixes fo
 
   No mask had the wrong type, and there were no masks in resolution notes. Read it with the caveats above: the planted data is regular and easy to catch, and the overall mask counts had already matched the answer key's totals before this run. 100% on synthetic data is not evidence of 100% on real tickets.
 
+## D-044: Demo roles for the dashboard and the assistant (step 6.3)
+- **Choice**: `config/roles.yaml` defines four demo roles. Each gives the pages it can open, the pages where business names are shown, the alert rules it sees, whether assistant answers get names added back, and the assistant tools it may use. `pipeline/roles/config.py` loads it and refuses unknown pages, tools or alert rules, names on a page the role cannot open, and unknown role names (no silent fallback). The default role is the service desk agent.
+
+  | Role | Pages | Business names shown on | Alert rules | Assistant tools |
+  |---|---|---|---|---|
+  | Service desk agent | Service, Alerts | none | ticket about to breach, P1 open 2h | KB search, as_of, open_ticket_alerts, sla_compliance, metric_definition |
+  | Account manager | Customers, Alerts | Customers, Alerts | at risk, unusual volume, CRM/billing mismatch | 10 customer, renewal, revenue and alert tools |
+  | Operations director | all five | Customers, Data quality, Alerts | all | all 14, exactly the frozen assistant's list |
+  | Data steward | Data quality | Data quality only (needs names for review-queue matches) | none | as_of, data_quality_summary, metric_definition |
+- **Not authentication**: the role is chosen in a sidebar selector labelled "Demo role — not authentication". Anyone can choose any role. Real access control would need sign-in and server-side enforcement, which is out of scope for the prototype.
+- **Dashboard** (`dashboard/common.py`):
+  - `app.py` lists only the role's pages.
+  - Every page also calls `page_header(title, page)`, which stops with an error if the role cannot open that page (defence in depth, e.g. a direct link).
+  - Business-name columns come from `name_column(page)`, which returns nothing where the role may not see names.
+  - The Alerts page filters by `alert_rule_filter()`. It shows the all-rule summary tiles only to roles with every rule; other roles see counts per rule.
+- **Assistant, without editing the frozen files** (`pipeline/roles/assistant.py`): `RoleAssistant` subclasses the frozen `pipeline.assistant.ask.Assistant` from a new file outside the frozen paths, and overrides three methods:
+  - `__init__` runs the frozen `__init__` (which sets `self.tools` to the KB tool plus the 13 data tools), then keeps only the role's tools in the same order. `ask()` builds every request from `self.tools`, so the model is offered only those.
+  - `_run_tool` refuses a tool outside the role with an error object (code `not_allowed`), because the model could still name one; otherwise it calls the frozen `_run_tool`.
+  - `_finish` shows the answer with IDs only for roles without `assistant_names`.
+
+  The frozen code is unchanged; `test_frozen_assistant_code_is_unchanged_since_the_tag` still passes.
+- **Same requests for the operations director**: with `tools: all`, its tool list is the frozen list. A test runs the frozen `Assistant` and `RoleAssistant("operations_director")` on the same script and checks that every request is byte-for-byte identical, and so are the answers.
+- **Evaluation scope**: the held-out score of 13/14 (D-042) applies to the all-tools role (operations director) only. The restricted roles were not evaluated with held-out questions. Their behaviour on out-of-scope questions (declining because a tool is not offered) is tested with a fake client, not measured live.
+- **Tests** (`tests/test_roles.py`, 31):
+  - every role against every page: refused or shown; name columns exactly where allowed; alert rows only from the role's rules;
+  - the navigation for each role;
+  - every role against all 14 tools: tools offered match the role, and calls outside it are refused;
+  - the operations director's requests are identical to the frozen assistant's;
+  - names are added to assistant answers only for roles allowed them.
+
+  The existing dashboard tests run as the operations director.
+- **Alternatives**: roles inside the frozen assistant (would break the freeze and the held-out result); hiding pages in navigation only (a direct link would still open them); one boolean "can see names" per role (the data steward needs names on one page only).
+

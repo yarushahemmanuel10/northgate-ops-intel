@@ -6,9 +6,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import streamlit as st  # noqa: E402
 
-from dashboard.common import money, page_header, query  # noqa: E402
+from dashboard.common import money, name_column, page_header, query  # noqa: E402
 
-page_header("Data quality")
+page_header("Data quality", "data_quality")
 q = query("SELECT * FROM v_kpi_bq14_review_summary").iloc[0]
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("Records on Unknown customer", int(q["records_on_unknown"]))
@@ -30,7 +30,8 @@ st.dataframe(query("SELECT source AS \"Source\", match_label AS \"Match\", recor
 
 st.subheader("Review queue")
 st.caption("Names that could not be matched automatically. Decisions go in config/review_decisions.csv (D-029).")
-st.dataframe(query("SELECT source_system AS \"Source\", name_as_written AS \"Name as written\", records AS \"Records\", "
+st.dataframe(query(f"SELECT source_system AS \"Source\", {name_column('data_quality', 'name_as_written', 'Name as written')}"
+                   "records AS \"Records\", "
                    "waiting AS \"Waiting\", decided AS \"Decided\" FROM v_kpi_bq14_review_queue "
                    "ORDER BY waiting DESC, records DESC"), hide_index=True, width="stretch")
 

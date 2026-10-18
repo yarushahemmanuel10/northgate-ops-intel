@@ -6,9 +6,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import streamlit as st  # noqa: E402
 
-from dashboard.common import money, page_header, query  # noqa: E402
+from dashboard.common import money, name_column, page_header, query  # noqa: E402
 
-page_header("Customers")
+page_header("Customers", "customers")
 risk = query("SELECT * FROM v_kpi_bq06_summary").iloc[0]
 q = query("SELECT * FROM v_kpi_bq14_review_summary").iloc[0]
 c1, c2, c3 = st.columns(3)
@@ -22,7 +22,7 @@ st.info("This list is a **prioritisation aid, not a prediction**. A customer is 
         "account manager can judge it; a healthy customer can meet the pattern by chance. Records still in the "
         "review queue are not counted for any customer.")
 st.dataframe(query(
-    "SELECT retention_rank AS \"Rank\", customer_id AS \"Customer\", company_name AS \"Name\", "
+    f"SELECT retention_rank AS \"Rank\", customer_id AS \"Customer\", {name_column('customers')}"
     "signals_fired AS \"Signals\", tickets_prev AS \"Tickets Apr-Jun\", tickets_last AS \"Tickets Jul-Sep\" "
     "FROM v_at_risk WHERE at_risk ORDER BY retention_rank"), hide_index=True, width="stretch")
 st.markdown("**Spend behind each flag** (Jul-Sep as a share of Apr-Jun; None when the customer had no spend of that kind in Apr-Jun)")
@@ -36,13 +36,13 @@ st.dataframe(query(
 
 st.subheader("Unusual ticket volume, September 2026")
 st.caption("4 or more tickets in the month (D-030).")
-st.dataframe(query("SELECT customer_id AS \"Customer\", company_name AS \"Name\", tickets AS \"Tickets\" "
+st.dataframe(query(f"SELECT customer_id AS \"Customer\", {name_column('customers')}tickets AS \"Tickets\" "
                    "FROM v_kpi_bq04_ticket_volume WHERE unusual_volume AND year_month = '2026-09' ORDER BY tickets DESC"),
              hide_index=True, width="stretch")
 
 st.subheader("New customers: onboarding")
 st.caption("Off track: 3 or more tickets, or any P1/P2, in the first 30 days (D-030).")
-st.dataframe(query("SELECT customer_id AS \"Customer\", company_name AS \"Name\", first_contract_start AS \"First contract\", "
+st.dataframe(query(f"SELECT customer_id AS \"Customer\", {name_column('customers')}first_contract_start AS \"First contract\", "
                    "tickets_first_30_days AS \"Tickets, first 30 days\", p1_p2_first_30_days AS \"P1/P2, first 30 days\", "
                    "off_track AS \"Off track\" FROM v_kpi_bq16_onboarding ORDER BY off_track DESC, first_contract_start"),
              hide_index=True, width="stretch",

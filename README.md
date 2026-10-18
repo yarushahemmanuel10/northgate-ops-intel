@@ -92,6 +92,8 @@ On a Mac, from the project folder:
 
 ```
 uv sync                                         # once, installs Streamlit and DuckDB into .venv
+# The sidebar has a "Demo role — not authentication" selector (config/roles.yaml, D-044): it decides which
+# pages, business names and assistant tools are shown. NORTHGATE_ROLE=operations_director sets it from the shell.
 uv run python -m pipeline.warehouse.load        # rebuild the warehouse from data/validated/ (no shop API needed)
 uv run streamlit run dashboard/app.py           # then open http://127.0.0.1:8501
 ```

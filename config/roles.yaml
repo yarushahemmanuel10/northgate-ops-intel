@@ -1,0 +1,37 @@
+# Demo roles (step 6.3, D-044). Decide what each role sees on the dashboard and which assistant tools it may
+# use. This is not authentication: the role is picked from a sidebar selector, and anyone can pick any role.
+default_role: service_desk_agent        # least broad useful view when nobody has chosen
+
+roles:
+  service_desk_agent:
+    label: Service desk agent
+    pages: [service, alerts]
+    names_on: []                        # pages where business names are shown
+    alert_rules: [ticket_about_to_breach, p1_open_2h]
+    assistant_names: false              # add business names to assistant answers
+    tools: [search_knowledge_base, as_of, open_ticket_alerts, sla_compliance, metric_definition]
+
+  account_manager:
+    label: Account manager
+    pages: [customers, alerts]
+    names_on: [customers, alerts]
+    alert_rules: [customer_at_risk, unusual_ticket_volume, crm_billing_mismatch]
+    assistant_names: true
+    tools: [as_of, at_risk_customers, unusual_ticket_volume, renewals, onboarding, revenue_by_line, revenue_monthly,
+            crm_billing_mismatches, active_alerts, metric_definition]
+
+  operations_director:
+    label: Operations director
+    pages: [overview, service, customers, data_quality, alerts]
+    names_on: [customers, data_quality, alerts]
+    alert_rules: all
+    assistant_names: true
+    tools: all                          # exactly the frozen assistant's tool list (D-041); evaluated 13/14 held-out
+
+  data_steward:
+    label: Data steward
+    pages: [data_quality]
+    names_on: [data_quality]            # needs names to decide review-queue matches; no revenue or customer pages
+    alert_rules: []
+    assistant_names: false
+    tools: [as_of, data_quality_summary, metric_definition]
