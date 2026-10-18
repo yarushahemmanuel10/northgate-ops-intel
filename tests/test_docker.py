@@ -113,3 +113,28 @@ def test_every_dashboard_page_runs_from_the_dashboard_image_files(db, tmp_path, 
     for page in ("overview", "service", "customers", "data_quality", "alerts"):
         at = AppTest.from_file(str(sim / "dashboard" / "pages" / f"{page}.py"), default_timeout=60).run()
         assert not at.exception, (page, [e.value for e in at.exception])
+
+
+def test_only_one_service_builds_the_shared_pipeline_image():
+    """D-046 fix: three services building the same tag raced ("image already exists")."""
+    s = COMPOSE["services"]
+    builders = [n for n, svc in s.items() if svc.get("image") == "northgate-pipeline:local" and "build" in svc]
+    assert builders == ["pipeline"] and s["pipeline"]["build"]["target"] == "pipeline"
+    for n in ("generate", "shop_api"):
+        assert "build" not in s[n] and s[n]["image"] == "northgate-pipeline:local" and s[n]["pull_policy"] == "never"
+    tags = [svc["image"] for svc in s.values() if "build" in svc]
+    assert len(tags) == len(set(tags))                      # no tag is built by two services
+
+
+def test_copied_files_are_readable_by_the_app_user_and_writable_only_in_data():
+    """D-046 fix: COPY keeps host modes (600 on the author's Mac), which uid 10001 could not read."""
+    for name in ("pipeline", "dashboard"):
+        lines = [l.strip() for l in stage(name).splitlines() if l.strip() and not l.strip().startswith("#")]
+        last_copy = max(i for i, l in enumerate(lines) if l.startswith("COPY "))
+        run = next(i for i, l in enumerate(lines) if l.startswith("RUN chmod -R a+rX,go-w /app"))
+        user = next(i for i, l in enumerate(lines) if l == "USER app")
+        assert last_copy < run < user, name                 # permissions fixed after every COPY, before dropping root
+        chowns = re.findall(r"chown\s+-R\s+app:app\s+(\S+)", stage(name))
+        assert chowns == ["/app/data"], (name, chowns)      # the app user owns nothing but the data folders
+        assert "--chown" not in stage(name), name
+    assert "chmod -R a+rX,go-w /opt/venv" in stage("base")

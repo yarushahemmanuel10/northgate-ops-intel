@@ -14,7 +14,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 RUN pip install --no-cache-dir uv==0.12.13
 WORKDIR /app
 COPY pyproject.toml uv.lock .python-version ./
-RUN uv sync --frozen --no-dev && rm -rf /root/.cache
+RUN uv sync --frozen --no-dev && rm -rf /root/.cache && chmod -R a+rX,go-w /opt/venv
 RUN groupadd --gid 10001 app && useradd --uid 10001 --gid app --no-create-home --shell /usr/sbin/nologin app
 
 FROM base AS pipeline
@@ -24,8 +24,11 @@ COPY pipeline/ pipeline/
 COPY config/ config/
 COPY semantic/ semantic/
 COPY knowledge_base/ knowledge_base/
-# Empty mount points owned by the app user, so new named volumes start with that owner.
-RUN mkdir -p data/warehouse data/alerts data/audit && chown -R app:app /app/data
+# COPY keeps the host's file modes (owner-only 600 on the author's Mac), so make every copied file readable and
+# every folder enterable by all users, and writable by root only (D-046). Then the empty mount points, owned by the
+# app user so new named volumes start with that owner: the data folders are the only place it can write.
+RUN chmod -R a+rX,go-w /app \
+ && mkdir -p data/warehouse data/alerts data/audit && chown -R app:app /app/data
 USER app
 CMD ["python", "-m", "pipeline.run"]
 
@@ -36,7 +39,9 @@ COPY .streamlit/ .streamlit/
 COPY semantic/ semantic/
 # Only the settings the dashboard reads; config/generator.yaml is deliberately not copied.
 COPY config/pipeline.yaml config/warehouse.yaml config/roles.yaml config/audit.yaml config/assistant.yaml config/kpi_thresholds.yaml config/
-RUN mkdir -p data/warehouse data/alerts data/audit && chown -R app:app /app/data
+# Readable by all, writable by root only; the data folders are the only place the app user can write (D-046).
+RUN chmod -R a+rX,go-w /app \
+ && mkdir -p data/warehouse data/alerts data/audit && chown -R app:app /app/data
 USER app
 EXPOSE 8501
 # Listens on all interfaces inside the container; compose publishes it on the host's 127.0.0.1 only.

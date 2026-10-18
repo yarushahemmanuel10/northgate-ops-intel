@@ -5,19 +5,19 @@
 #   docker compose up dashboard           # http://127.0.0.1:8501
 name: northgate
 
-x-pipeline-image: &pipeline-image
-  build: {context: ., target: pipeline}
-  image: northgate-pipeline:local
-
+# Only the pipeline service builds northgate-pipeline:local; generate and shop_api reuse that image and never pull
+# it (building the same tag from three services raced, D-046).
 services:
   generate:                               # one-off: synthetic sources, answer keys and clean data
-    <<: *pipeline-image
+    image: northgate-pipeline:local
+    pull_policy: never
     command: ["python", "-m", "generator.run"]
     volumes:
       - work:/app/data
 
   shop_api:                               # mock shop API, reachable only inside the compose network
-    <<: *pipeline-image
+    image: northgate-pipeline:local
+    pull_policy: never
     command: ["uvicorn", "shop_api.app:app", "--host", "0.0.0.0", "--port", "8765"]
     volumes:
       - work:/app/data:ro
@@ -31,7 +31,8 @@ services:
       start_period: 5s
 
   pipeline:                               # one-off: ingest -> ... -> alerts, KB index, audit head
-    <<: *pipeline-image
+    build: {context: ., target: pipeline}
+    image: northgate-pipeline:local
     command: ["python", "-m", "pipeline.run"]
     environment:
       NORTHGATE_SHOP_API_URL: http://shop_api:8765
