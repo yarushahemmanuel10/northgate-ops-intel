@@ -428,4 +428,11 @@ Decided by the project author after D-039. These are general rules, not fixes fo
 4. **Show the working** (prompt rule 2). If the model calculates a figure, it shows the working and the source numbers, e.g. "half of the 24-hour target = 12 hours". The checker is unchanged, so a calculated figure that is not in a tool result is still flagged.
 5. **Output limit 2,048 tokens** (`config/assistant.yaml` `max_tokens`, previously 1,024). T02's baseline answer was cut off mid-sentence at 1,024 output tokens (`stop_reason` max_tokens), part of which went on the model's own reasoning. Only tokens actually produced are charged, so the limit raises the worst case, not the typical cost. The run limit stays at £0.50.
 - The other prompt rules are unchanged apart from renumbering, and "sections" becoming "articles" in the decline rule.
+- **Live tuning run after D-040** (the author's Mac, 18:09–18:10 local time; started after the 2,048-token change, and re-scored from the cache here with identical results outside the cost columns): **25/28**, against the baseline's 21 and the re-scored 24. 54 API calls, 284,822 tokens in, 8,858 out, £0.0329; the longest reply was 486 output tokens. Now passing: T01 (8 hours from KB-0045's full article), T04 (bracketed citations), T10. Now failing: T17, DT02. Still failing: DT06. Remaining failures:
+  - T17: "Six weeks is 42 days, and nightly backups are kept for only 30 days" (correct, with its working shown). The figure check cannot read "six" as a number, so 42 is flagged.
+  - DT02: "Three open tickets are about to breach…" (correct). The figure check looks for the digit 3 and cannot read "Three".
+  - DT06: cites `[semantic/metrics.yaml, docs/01_business_processes.md]`. The second source was named inside the result, not returned, which breaks prompt rule 3. A real rule failure.
+  - T10 passes, but partly by chance: "12 hours" is not in KB-0047; the figure check found a 12 elsewhere in the returned full articles (KB-0006, "at least 12 characters").
+  - Rough checks only: T04, T05 and T08 must-include misses (T17 and T20 now pass).
+- Commit 3d225d7 (the output-limit change) also picked up this run's results files by accident; its message does not mention them.
 
