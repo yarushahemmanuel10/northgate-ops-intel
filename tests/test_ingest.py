@@ -54,7 +54,7 @@ def _read(path):
 
 def test_pipeline_never_reads_answer_key_or_generator():
     banned = ["ground_truth", "data/clean", "\"clean\"", "_meta.yaml", "generator.yaml",
-              "from generator", "import generator", "shop_orders.json"]
+              "from generator", "import generator", "shop_orders.json", "heldout"]
     for path in (ROOT / "pipeline").rglob("*.py"):
         text = path.read_text(encoding="utf-8")
         for b in banned:

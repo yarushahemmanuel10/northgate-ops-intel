@@ -1,0 +1,30 @@
+# Assistant settings (step 5.4, D-037). Read by pipeline/assistant/.
+
+model: claude-haiku-5-5          # cheapest current model with tool use (prices below)
+max_tokens: 1024                 # per reply
+max_tool_rounds: 5               # model -> tools -> model loops per question before it must stop
+
+prices:                          # US dollars per million tokens, prompts up to 100K tokens
+  source: https://platform.claude.com/docs/en/about-claude/pricing
+  checked: "2026-10-18"
+  input: 0.10
+  output: 0.50
+  cache_write_5m: 0.125
+  cache_read: 0.01
+
+budget:
+  limit_gbp: 5.00
+  # No exchange rate is assumed: each US dollar is counted as one pound. A dollar is worth less than a
+  # pound, so this overstates spend and the limit is reached early, never late.
+  gbp_per_usd: 1.0
+
+knowledge_base:
+  top_k: 5
+  # Below this top score the result is marked weak_evidence. 8.5 is just under the lowest top score of an
+  # answerable tuning question (8.57, D-035). Abstain scores overlap with answerable ones, so this is a
+  # warning to the model, not a cut-off; the model must still judge whether the sections answer the question.
+  weak_score: 8.5
+  # Current articles known to disagree (D-035: near-duplicates are kept apart so the conflict is visible).
+  # When one is retrieved, the other's best section is added and the result carries a conflict warning.
+  conflicts:
+    - [KB-0008, KB-0030]

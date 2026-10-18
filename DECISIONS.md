@@ -357,3 +357,29 @@ Proposed from read-only warehouse queries and business sense, never from the ans
 - **Alternatives**: letting the model write SQL against the warehouse (flexible, but it could read base tables with names and ticket text, and wrong SQL gives confident wrong numbers); a single generic `query_view(view, filters)` tool (fewer tools, but the model would have to know column meanings and add up rows); MCP server (more moving parts than a list of Python functions for one local assistant); `jsonschema` for argument checks (one more dependency for the five checks the schemas use).
 - **Limits**: questions that need a cut the tools don't offer (for example SLA by category, BQ-03, or a single customer's history) cannot be answered and should lead the assistant to say so. The customer summary (BQ-08), lines taken (BQ-09), delivery (BQ-10) and KB usage (BQ-12) views have no tool yet; they can be added the same way if the evaluation questions need them.
 
+## D-037: The assistant: Claude Haiku 5.5 with tools, what leaves the machine, cost limit (step 5.4)
+- **Model**: `claude-haiku-5-5`, the cheapest current model, priced at $0.10 per million input tokens and $0.50 per million output tokens for prompts up to 100K tokens (Anthropic pricing page, checked 2026-10-18). The page lists its tool-use overhead, so it supports tool use. Estimate before any live call: about 10,000 input and 600 output tokens per question over 2 or 3 tool rounds, about $0.0013. The model and prices are in `config/assistant.yaml`, so a change is one line.
+- **How a question runs** (`pipeline/assistant/ask.py`): the model gets 14 tools, `search_knowledge_base` (D-035) and the 13 data tools (D-036), and chooses which to call. That choice is the routing: KB, data, both, or none. Tools run locally and only their results go back, for at most 5 rounds. The system prompt requires: answers only from tool results; a citation after every figure (KB ID or view name); totals rather than adding rows; customer IDs, never names; fixed decline sentences ("The knowledge base doesn't answer this." / "The system can't answer that.") when the evidence is weak or no tool covers the question; and both sides shown when articles conflict.
+- **What leaves the machine**: the question, the system prompt, the tool definitions, KB section text, and aggregated data-tool results with customer IDs. Nothing else. Specifically:
+  - No business names: a name the user types is replaced locally by its customer ID before sending (`names_to_ids`). Names are added back to the reply locally by code (`pipeline/tools/names.py`); the model never sees or writes one.
+  - No staff names, no review-queue names, no ticket text, no personal data.
+  - **Guard**: `pipeline/assistant/guard.py` checks every request before it is sent, or cached, against every business name, review-queue name, staff name and ticket text (25 characters or more) in the local warehouse. A match refuses the request ("Nothing left the machine"), and the refusal message never repeats the value.
+  - **Test**: a test drives the assistant through every tool and every allowed value with a fake client, then searches every captured request for all of those values independently of the guard.
+- **Key**: read from `.env` only (not from environment variables), passed straight to the client, never printed, logged or committed; `.env` is git-ignored (tested).
+- **Cost control** (`pipeline/assistant/llm.py`):
+  - **Log**: every call goes to `data/assistant/calls.jsonl` with time, model, tokens in and out, cache tokens, and cost in dollars and pounds. Requests and replies are not logged.
+  - **Cache**: identical requests (model, system prompt, tools, messages, max tokens) are answered from `data/assistant/cache/` at no cost.
+  - **Limit**: before each API call the logged spend is totalled, and at £5 or more the call is refused with a clear message. No exchange rate is assumed: each dollar counts as one pound, which overstates spend, so the limit is reached early rather than late.
+- **Honesty checks in code** (`check_answer`), reported as warnings with each answer, not hidden:
+  - every cited KB ID and view name must have been returned for this question;
+  - KB-0026 must never be cited, though it is not in the index and so can't be returned;
+  - if both KB-0008 and KB-0030 were returned, citing only one is flagged;
+  - every figure in the answer must match a number in a tool result or the question, after allowing for rounding, %, k and m.
+- **KB tool additions**: `weak_evidence` when the top score is below 8.5, just under the lowest answerable tuning score (8.57). Because the abstain scores overlap (D-035), this is a hint to the model, not a cut-off. `config/assistant.yaml` lists KB-0008 and KB-0030 as known to conflict (from the project author's instruction and D-035). When one is retrieved, the other's best section is added along with a warning.
+- **Alternatives**: Sonnet 5.5 ($2/$10, 20 times the price; kept as the fallback if Haiku's tool use proves weak in the evaluation); a fixed keyword router instead of letting the model choose (brittle with paraphrases, and it can't decide "both"); sending names and asking the model not to repeat them (relies on the model, against the brief); masking only in the prompt without a code guard (no proof); python-dotenv (one more dependency for reading one line).
+- **Limits**:
+  - The figure check is a pattern match: it can miss a figure written in words ("thirty-six") or wrongly accept a coincidental match.
+  - The guard only knows names that are in the warehouse.
+  - The model may still choose the wrong tool, or decline when it shouldn't. The evaluation harness (5.5) measures this.
+  - The SDK version pinned (`anthropic==1.15.0`) adds 6 small dependencies (`docstring-parser`, `httpcore2`, `httpx2`, `jiter`, `sniffio`, `truststore`).
+

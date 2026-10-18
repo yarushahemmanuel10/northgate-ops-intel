@@ -18,7 +18,7 @@ def lookup(warehouse_db: Path) -> dict[str, str]:
     con = duckdb.connect(str(warehouse_db), read_only=True)
     try:
         return dict(con.execute("SELECT customer_id, company_name FROM dim_customer "
-                                "WHERE company_name IS NOT NULL").fetchall())
+                                "WHERE company_name IS NOT NULL AND NOT is_unknown").fetchall())
     finally:
         con.close()
 

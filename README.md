@@ -70,6 +70,8 @@ uv run python -m pipeline.retrieval.index          # build the KB search index d
 uv run python -m pipeline.retrieval.index printer offline   # ... and show the top 5 articles for a query
 uv run python -m eval.retrieval_eval               # retrieval scores on the 20 tuning questions (held-out file refused)
 uv run python -m pipeline.tools.data renewals '{"status": "renewal date missing"}'   # run one data tool (D-036)
+uv run python -m pipeline.assistant.ask "How many contract lines renew in the next 90 days?"   # Claude API call (D-037)
+uv run python -m pipeline.assistant.ask --spend    # total logged API spend against the £5 limit
 ```
 
 Or run the whole chain in one go, with the shop API running in another terminal:
@@ -120,6 +122,7 @@ Stop it with Ctrl+C. To rebuild everything from the raw files first, start the s
 | `data/resolved/` | No | Crosswalk of every source record to a CRM account, and the review queue | `python -m pipeline.resolve.run` |
 | `data/warehouse/` | No | Duplicate marks, the DuckDB star schema (`northgate.duckdb`) and Power BI CSV exports in `exports/` | `python -m pipeline.run` (whole chain) |
 | `data/alerts/` | No | Alert history (alerts, run log), kept across warehouse rebuilds | `python -m pipeline.alerts.run` (step of `pipeline.run`) |
+| `data/assistant/` | No | API call log (`calls.jsonl`: time, model, tokens, cost) and response cache | `python -m pipeline.assistant.ask` |
 | `data/retrieval/` | No | KB search index (sections of current articles; superseded list) | `python -m pipeline.retrieval.index` (last step of `pipeline.run`) |
 | `eval/questions/` | Yes | The reviewer's knowledge-base evaluation questions (20 tuning, 10 held out) | Written by the reviewer |
 | `.env` | No | API key (never committed) | You |

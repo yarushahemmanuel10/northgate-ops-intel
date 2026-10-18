@@ -12,6 +12,7 @@ data/resolved/
 data/warehouse/
 data/alerts/
 data/retrieval/
+data/assistant/
 data/processed/
 data/rejected/
 data/*.duckdb
