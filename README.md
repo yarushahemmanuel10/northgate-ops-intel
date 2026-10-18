@@ -69,6 +69,7 @@ uv run python -m pipeline.alerts.run               # evaluate config/alert_rules
 uv run python -m pipeline.retrieval.index          # build the KB search index data/retrieval/kb_index.duckdb (D-035)
 uv run python -m pipeline.retrieval.index printer offline   # ... and show the top 5 articles for a query
 uv run python -m eval.retrieval_eval               # retrieval scores on the 20 tuning questions (held-out file refused)
+uv run python -m pipeline.tools.data renewals '{"status": "renewal date missing"}'   # run one data tool (D-036)
 ```
 
 Or run the whole chain in one go, with the shop API running in another terminal:
