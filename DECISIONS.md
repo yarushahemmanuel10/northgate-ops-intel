@@ -466,4 +466,24 @@ Decided by the project author after D-039. These are general rules, not fixes fo
   - that folder holds no finished results yet.
   `--cache-only` re-scoring is allowed anywhere. An interrupted run writes no results file, so it can be restarted, and the questions already answered are served from the cache. The refusal test now uses an approval path that doesn't exist (`NORTHGATE_HELDOUT_APPROVAL`) rather than requiring the real file to be absent.
 - **Rule for the results**: no change of any kind in response; real faults are recorded as known limitations for the write-up.
+- **Held-out result, exactly as it came out** (the author's Mac, run once; re-scored from the cache in the build workspace, identical outside the cost columns; results in `eval/results/heldout_2026-10-18/`, CSV sha1 4f32143a…): **13/14**, against 26/28 on the tuning set.
+
+  | Type | Passed |
+  |---|---|
+  | KB fact | 4/4 |
+  | KB paraphrase | 2/2 |
+  | KB multi_doc | 1/1 |
+  | KB superseded | 1/1 |
+  | KB conflict | 1/1 |
+  | KB abstain | 1/1 |
+  | Data | 2/3 |
+  | Data abstain | 1/1 |
+
+  By check: retrieval hit 9/9, tool used 3/3, figures 3/3, citation 13/13, abstention 14/14, post-reply checks 13/14. Rough checks, not counted: must-include 5/9 (misses on H02, H03, H04, H08), no recommendation 1/1. Cost: 27 API calls, 148,163 tokens in, 5,067 out, £0.0174.
+- **The one failure, DH01**: "84.99% of closed P3 tickets met their resolution target: 623 of 733 measured tickets (733 minus 110 breaches)". The answer is correct and shows its working. The post-reply check flags 623 because it is calculated (733 − 110) and appears in no tool result. This is the same known limitation as T17 (D-041): the checker cannot verify a calculated figure.
+- **No changes were made in response.** Known limitations for the write-up:
+  - **Calculated figures** (T17, DH01): correct answers that show their working are flagged, and a calculation can also pass by chance (T10).
+  - **Citing a document only seen mentioned** (DT06): against prompt rule 3; caught by the post-reply code check.
+  - **Rough keyword checks**: must-include misses are a mix of paraphrases and omissions, and were not used for scoring.
+- API spend for the whole of step 5.4–5.5: 146 calls, 722,329 tokens in, 25,296 out, £0.0849 of the £5 limit.
 

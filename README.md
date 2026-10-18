@@ -104,6 +104,26 @@ Stop it with Ctrl+C. To rebuild everything from the raw files first, start the s
 | **Customers** | **Data quality** |
 | ![Customers](docs/screenshots/customers.png) | ![Data quality](docs/screenshots/data_quality.png) |
 
+## Assistant evaluation (Phase 5)
+
+The assistant (Claude Haiku 5.5 with knowledge-base search and 13 read-only data tools, D-035 to D-037) was scored by `eval/assistant_eval.py` on questions it never saw while being built:
+
+| Run | Questions passed | Results |
+|---|---|---|
+| Baseline (first tuning run, D-038) | 21/28 | `eval/results/baseline_2026-10-18/` |
+| Baseline re-scored after checker fixes (D-039) | 24/28 | `eval/results/rescored_2026-10-18/` |
+| Run 2, after one general change: full articles, citation and working rules, 2,048-token limit (D-040) | 25/28 | `eval/results/run2_2026-10-18/` |
+| Run 2 re-scored with number words: assistant frozen, tag `assistant-frozen` (D-041) | 26/28 | `eval/results/assistant_tune.*` |
+| **Held-out, run once against the frozen assistant (D-042)** | **13/14** | `eval/results/heldout_2026-10-18/` |
+
+- **The questions**: 30 knowledge-base and 12 data-route questions, written by a separate AI reviewer (a different Claude session from the one building the pipeline) from the knowledge base and the tool definitions only, without the generator's answer key (`eval/questions/README.md`). The builder read only the tuning files. The two held-out files were committed unopened, and opened once, by the code, for the approved final run.
+- **What is scored**: retrieval, citations, declining when it should, the right tool, figures within tolerance, and the assistant's own post-reply checks. Must-include phrases and "no recommendation on conflicts" are rough keyword checks, reported but not scored. After each run, changes had to be general rules recorded in DECISIONS.md, followed by a full re-run. No changes were made after the held-out run.
+- **Total API spend** for building and evaluating the assistant: 146 API calls, 722,329 tokens in, 25,296 out, **£0.085** (limit £5; every call is logged in `data/assistant/calls.jsonl`).
+- **Known limitations**:
+  - **Calculated figures**: correct answers that show their working ("six weeks is 42 days" in T17, "733 minus 110 = 623" in DH01) are flagged, because the checker cannot verify arithmetic. A calculation can also pass by chance when the same number appears elsewhere.
+  - **Unreturned citations**: in DT06 the model cited a document it only saw mentioned inside a result, against its own citation rule. The post-reply check catches it and shows a warning.
+  - **Small sample**: 28 + 14 questions are few, and the keyword checks are rough.
+
 ## What is committed and what is generated
 
 <!-- files-table:start -->
