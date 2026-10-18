@@ -518,4 +518,13 @@ Decided by the project author after D-039. These are general rules, not fixes fo
 - **6.2 decision** (project author): masked tickets go to the warehouse, exports and dashboard only. Assistant past-ticket search is future work, because adding it would change the frozen assistant after its held-out evaluation. BQ-11 is recorded as **partly met** in `docs/03_requirements.md`: knowledge-base and data questions met, past-ticket search deferred.
 - **Held-out guard narrowed** (evaluation code): `--heldout` compared all of `pipeline/` and `config/` with the frozen tag, which Phase 6 work legitimately changes. It now checks exactly the frozen paths from D-041 (`pipeline/assistant`, `pipeline/retrieval`, `pipeline/tools`, `config/assistant.yaml`), and a new test fails if any of them differ from `assistant-frozen`.
 - **Alternatives**: Presidio or spaCy NER (large models and dependencies, and hard to explain line by line); masking only by fixed patterns, without cues (misses names); hashing names instead of placeholders (reversible by dictionary attack, and no more useful here).
+- **Held-out result, run once** (789 tickets, 302 spans; `eval/results/masking_heldout/summary.md`; a second run is refused):
+
+  | Type | Recall | False masks |
+  |---|---|---|
+  | Name | 152/152 | 0 |
+  | Phone | 95/95 | 0 |
+  | Email | 55/55 | 0 |
+
+  No mask had the wrong type, and there were no masks in resolution notes. Read it with the caveats above: the planted data is regular and easy to catch, and the overall mask counts had already matched the answer key's totals before this run. 100% on synthetic data is not evidence of 100% on real tickets.
 
