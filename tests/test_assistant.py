@@ -220,3 +220,12 @@ def test_answer_checks():
     both = check_answer("KB-0008 says agents must; KB-0030 says users can. They conflict.", "q", [kb], cfg)
     assert both["warnings"] == []
     assert check_answer("About £0.46m a year [v_kpi_bq05_renewals].", "q", [data], cfg)["warnings"] == []
+
+
+def test_env_example_holds_no_key():
+    """.env.example is committed, so it may name the variable but never carry a value."""
+    from pipeline.settings import ROOT
+    lines = (ROOT / ".env.example").read_text(encoding="utf-8").splitlines()
+    keys = [l for l in lines if l.strip().startswith("ANTHROPIC_API_KEY")]
+    assert keys == ["ANTHROPIC_API_KEY="], "ANTHROPIC_API_KEY= in .env.example must have nothing after it"
+    assert all(l.strip().startswith("#") or l.strip().endswith("=") or not l.strip() for l in lines)
