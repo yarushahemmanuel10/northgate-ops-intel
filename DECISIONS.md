@@ -387,3 +387,26 @@ Proposed from read-only warehouse queries and business sense, never from the ans
   - DT04 (data route): 36 lines with a combined annual value of 459,400 from `v_kpi_bq05_renewals`, window 1 October to 29 December 2026; both figures match the tool totals. The £ sign was left off.
   - DT08 (decline): said "The system can't answer that" and explained that SLA is broken down by priority and month only. It then gave the overall response (94.07%) and resolution (88.06%) rates, labelled as overall and cited. They match the tool totals and are not presented as the Printing rate.
 
+## D-038: Evaluation harness, and three general prompt rules set before the first tuning run (step 5.5)
+- **Prompt rules, added before any tuning run** (at the project author's request after the 5.4 live check). They apply to every question:
+  1. Every amount of money shows £ and says what it is (e.g. "annual contract value £459,400").
+  2. When KB articles conflict, give both, say they conflict, and say the service desk lead should resolve it, without recommending a side or what to do meanwhile. The service desk lead is the owner of "which articles are out of date" in the fact sheet (`docs/01_business_processes.md`, BQ table).
+  3. When declining, give the reason and what the system can answer, without adding figures that were not asked for.
+- **Harness** (`eval/assistant_eval.py`): runs the assistant on the 20 KB and 8 data tuning questions and scores each with the README's fields.
+  - **Scored checks:**
+    - retrieval hit: an expected source was returned;
+    - citation: an expected source is cited, and nothing in `must_not_cite` is;
+    - abstention: the fixed decline sentences are used on abstain questions and not on answerable ones;
+    - tool used, for data and definition questions;
+    - figures: each `checks.path` value, read from the named tool at run time, is in the answer within tolerance;
+    - post-reply checks: the assistant's own code raised no warning.
+  - **Rough keyword checks, reported apart and not counted in a question's pass:**
+    - `must_include`: all keywords of each phrase appear in the answer;
+    - `no_recommendation`, for conflict questions: a fixed list of recommendation words (safer, recommend, suggest, advise, best to, better to, go with, prefer, in the meantime and similar), fixed before the first run.
+  - **Output:** `eval/results/assistant_tune.csv` has one row per question, with each check's pass/fail and reason. `assistant_tune_summary.md` has pass rates by question type and cost from uncached calls only, with the number of calls served from the cache. A run stops at £0.50.
+  - **Cache-only mode:** `--cache-only` re-scores from the response cache with no API calls. The build workspace's proxy blocks the API (D-037), so the author runs the evaluation on their Mac and the builder re-scores it from the cache.
+- **Held-out guard**: `--heldout` refuses (exit code 3) unless `eval/heldout_approval.yaml` exists. That file is created only after the author approves the final evaluation in chat. The loaders also refuse both held-out files unless `final=True`, before touching them, and a test checks neither file is opened.
+- **Tuning rule**: after a run, nothing is tuned to individual failed questions. Any change must be a general rule, recorded here, and is followed by a re-run of the whole tuning set.
+- **Alternatives**: a model judging answers (costs more, and a model marking a model needs its own evaluation); exact-phrase matching for `answer_must_include` (fails on paraphrase; keywords are rough but transparent); scoring only the final answer without the sources returned (cannot separate a search miss from an answer miss).
+- **Limits**: the decline and recommendation checks are string matches, so an answer that declines in other words, or recommends without those words, is mis-scored; the figures check can match a coincidental number; 28 tuning questions are few.
+

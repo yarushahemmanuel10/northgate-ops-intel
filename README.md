@@ -72,6 +72,8 @@ uv run python -m eval.retrieval_eval               # retrieval scores on the 20 
 uv run python -m pipeline.tools.data renewals '{"status": "renewal date missing"}'   # run one data tool (D-036)
 uv run python -m pipeline.assistant.ask "How many contract lines renew in the next 90 days?"   # Claude API call (D-037)
 uv run python -m pipeline.assistant.ask --spend    # total logged API spend against the £5 limit
+uv run python -m eval.assistant_eval               # score the assistant on the 28 tuning questions (D-038), about 3p
+uv run python -m eval.assistant_eval --cache-only  # re-score from the response cache, no API calls
 ```
 
 Or run the whole chain in one go, with the shop API running in another terminal:

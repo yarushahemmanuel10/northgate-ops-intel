@@ -11,17 +11,13 @@ from __future__ import annotations
 import json
 import sys
 
-import yaml
-
-from eval.kb_questions import load
+from eval.kb_questions import load, load_data
 from pipeline.assistant.ask import Assistant
-from pipeline.settings import ROOT
 
 
 def question(qid: str) -> str:
     if qid.startswith("DT"):
-        with open(ROOT / "eval" / "questions" / "data_eval_tune.yaml", encoding="utf-8") as fh:
-            return next(q for q in yaml.safe_load(fh)["questions"] if q["id"] == qid)["question"]
+        return next(q for q in load_data("tune") if q["id"] == qid)["question"]
     return next(q for q in load("tune") if q["id"] == qid)["question"]
 
 

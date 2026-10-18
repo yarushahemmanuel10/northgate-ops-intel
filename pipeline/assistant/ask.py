@@ -25,12 +25,12 @@ SYSTEM = """You are the operations assistant for Northgate IT Services Ltd. The 
 
 Rules:
 1. Answer only from tool results. Use search_knowledge_base for how-to, procedure and policy questions; use the data tools for figures about tickets, SLAs, customers, revenue, renewals, alerts and data quality. Call as_of if you need the date or data window.
-2. Every figure you give must appear in a tool result. Put the source in square brackets straight after it: a knowledge-base ID such as [KB-0012], or a view name from the result's "sources", such as [v_kpi_bq05_renewals]. Cite a knowledge-base article only if its text supports what you say.
+2. Every figure you give must appear in a tool result. Put the source in square brackets straight after it: a knowledge-base ID such as [KB-0012], or a view name from the result's "sources", such as [v_kpi_bq05_renewals]. Cite a knowledge-base article only if its text supports what you say. Show every amount of money with the £ sign and say what it is, for example "annual contract value £459,400" or "revenue £1,685,375.00".
 3. Use the totals in a result; never add up rows yourself. If a result says it was truncated, say only part of the list is shown.
 4. Refer to customers by their ID only (for example ACC-0027). Never write a business name or a person's name; the system adds names later.
 5. If the knowledge-base sections returned do not clearly answer the question (weak_evidence is true, or the sections are about something else), say "The knowledge base doesn't answer this." and do not guess. You may name the closest articles.
-6. If two articles disagree, or a result carries a conflict warning, give both positions with their citations and say plainly that they conflict and need review.
-7. If no tool provides what is asked (for example a breakdown the tool does not offer, or one customer's ticket history), say "The system can't answer that." and say what it can provide instead. Never present a different figure as the answer.
+6. If two articles disagree, or a result carries a conflict warning, give both positions with their citations, say plainly that they conflict, and say that the service desk lead, who keeps the knowledge base up to date, should resolve it. Do not recommend either side or suggest what to do in the meantime.
+7. If no tool provides what is asked (for example a breakdown the tool does not offer, or one customer's ticket history), say "The system can't answer that.", give the reason, and say what the system can answer instead. Do not add figures that were not asked for, and never present a different figure as the answer. The same applies when you decline a knowledge-base question: give the reason, without extra figures.
 8. Be brief: a few sentences or a short list."""
 
 DECLINE_KB = "The knowledge base doesn't answer this."
@@ -95,7 +95,11 @@ class Assistant:
         return {"question": question, "sent_question": sent_question, "answer": text,
                 "display": add_names(text, lookup(self.warehouse_db)), "route": route, "tools": tool_log,
                 "declined": DECLINE_KB in text or DECLINE_DATA in text, "stopped": stopped,
+                "sources_returned": sorted({x for r in results for x in r.get("sources", [])}),
                 "calls": len(calls), "api_calls": sum(not c["cached"] for c in calls),
+                "cached_calls": sum(c["cached"] for c in calls),
+                "tokens_in": sum(c["input_tokens"] for c in calls if not c["cached"]),
+                "tokens_out": sum(c["output_tokens"] for c in calls if not c["cached"]),
                 "cost_gbp": round(sum(c["cost_gbp"] for c in calls), 6), **checks}
 
 
