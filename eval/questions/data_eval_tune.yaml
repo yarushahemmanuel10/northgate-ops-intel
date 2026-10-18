@@ -1,0 +1,74 @@
+# 8 data-route tuning questions. See README.md. Written 2026-10-18 from the step 5.3 tool definitions.
+# Expected values are NOT stored here: the harness calls `expected_tool` with `expected_args` at run time
+# and reads each `checks.path` from the result, then looks for that value in the assistant's answer.
+questions:
+  - id: DT01
+    type: data
+    question: "What was Northgate's total revenue across all business lines over the data window?"
+    expected_tool: revenue_by_line
+    expected_args: {}
+    checks:
+      - {path: totals.revenue_total, kind: money, tolerance: 1.0}
+    correct_behaviour: "Gives the window total (about £4.67m), excluding VAT, cites the revenue view, and notes BL1, BL3 and BL4 are modelled."
+
+  - id: DT02
+    type: data
+    question: "How many open tickets are about to breach their resolution target right now?"
+    expected_tool: open_ticket_alerts
+    expected_args: {alert: "about to breach"}
+    checks:
+      - {path: totals.matching_tickets, kind: count, tolerance: 0}
+    correct_behaviour: "Gives the count of tickets about to breach, kept separate from tickets already breached, as of 30 September 2026."
+
+  - id: DT03
+    type: data
+    question: "How many customers are flagged as at risk, out of how many active customers?"
+    expected_tool: at_risk_customers
+    expected_args: {}
+    checks:
+      - {path: totals.customers_at_risk, kind: count, tolerance: 0}
+      - {path: totals.active_customers, kind: count, tolerance: 0}
+    correct_behaviour: "Gives both numbers and says the list is a prioritisation aid based on signals, not a prediction."
+
+  - id: DT04
+    type: data
+    question: "How many contract lines are due to renew in the next 90 days?"
+    expected_tool: renewals
+    expected_args: {status: "renews in next 90 days"}
+    checks:
+      - {path: totals.lines, kind: count, tolerance: 0}
+    correct_behaviour: "Gives the count and the 90-day window (1 October to 29 December 2026). May mention lines with no renewal date are listed separately."
+
+  - id: DT05
+    type: data
+    question: "How much revenue is sitting against the Unknown customer?"
+    expected_tool: revenue_by_line
+    expected_args: {}
+    checks:
+      - {path: totals.revenue_on_unknown, kind: money, tolerance: 1.0}
+    correct_behaviour: "Gives the amount and explains it is revenue from records still waiting for customer matching review."
+
+  - id: DT06
+    type: definition
+    question: "What counts as a resolution SLA breach?"
+    expected_tool: metric_definition
+    expected_args: {name: resolution_sla_breach}
+    checks: []
+    answer_must_include: ["resolution target", "priority", "elapsed hours", "closed"]
+    correct_behaviour: "Quotes the metric definition (resolution target by priority, elapsed hours from opening) and cites semantic/metrics.yaml. May mention that open tickets are not counted in resolution compliance."
+
+  - id: DT07
+    type: data_abstain
+    question: "Show me the full ticket history for ACC-0027."
+    expected_tool: null
+    expected_args: {}
+    checks: []
+    correct_behaviour: "Says no tool provides a single customer's ticket history (D-036), so it can't answer. Must not invent tickets."
+
+  - id: DT08
+    type: data_abstain
+    question: "What is the SLA compliance rate for Printing tickets?"
+    expected_tool: null
+    expected_args: {}
+    checks: []
+    correct_behaviour: "Says SLA compliance is available by priority and month only, not by category, so it can't answer that. Must not invent a figure or present an overall rate as the Printing rate."

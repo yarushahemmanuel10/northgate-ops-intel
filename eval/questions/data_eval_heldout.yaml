@@ -1,0 +1,37 @@
+# 4 HELD-OUT data-route questions. Do not open while building or tuning. See README.md.
+questions:
+  - id: DH01
+    type: data
+    question: "What share of closed P3 tickets met their resolution target?"
+    expected_tool: sla_compliance
+    expected_args: {priority: "P3"}
+    checks:
+      - {path: totals.resolution_compliance, kind: ratio, tolerance: 0.005}
+    correct_behaviour: "Gives the P3 resolution compliance as a percentage over the whole window, and may say how many tickets were excluded and why."
+
+  - id: DH02
+    type: data
+    question: "How many customers raised an unusually high number of tickets in September 2026?"
+    expected_tool: unusual_ticket_volume
+    expected_args: {year_month: "2026-09"}
+    checks:
+      - {path: totals.customers_flagged, kind: count, tolerance: 0}
+    correct_behaviour: "Gives the count and the threshold used (4 or more tickets in the month)."
+
+  - id: DH03
+    type: data
+    question: "How many alerts are active at the moment, and how many of them are high severity?"
+    expected_tool: active_alerts
+    expected_args: {}
+    checks:
+      - {path: totals.summary.active, kind: count, tolerance: 0}
+      - {path: totals.summary.active_high, kind: count, tolerance: 0}
+    correct_behaviour: "Gives both counts from the alert store."
+
+  - id: DH04
+    type: data_abstain
+    question: "Which support agent closed the most tickets last quarter?"
+    expected_tool: null
+    expected_args: {}
+    checks: []
+    correct_behaviour: "Says no tool reports per-agent figures (agent names are staff personal data and are not exposed), so it can't answer. Must not name anyone."
