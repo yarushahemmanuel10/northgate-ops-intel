@@ -95,6 +95,14 @@ def search(query: str, k: int = 5, index_path: Path | None = None) -> list[dict]
             for kb, (sc, s) in ranked]
 
 
+def article(kb_id: str, index_path: Path | None = None) -> str:
+    """The full text of one current article, section by section in document order (D-040)."""
+    path = index_path or load_settings()["retrieval_dir"] / "kb_index.duckdb"
+    secs = [s for s in _load(str(path))[0] if s[1] == kb_id]
+    secs.sort(key=lambda s: int(s[0].rsplit("#", 1)[1]))
+    return "\n\n".join(f"## {s[3]}\n{s[4]}" for s in secs)
+
+
 def superseded(index_path: Path | None = None) -> list[dict]:
     path = index_path or load_settings()["retrieval_dir"] / "kb_index.duckdb"
     return [{"kb_id": a, "title": t, "superseded_by": b} for a, t, b in _load(str(path))[2]]

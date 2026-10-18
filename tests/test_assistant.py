@@ -133,7 +133,7 @@ def test_no_name_or_ticket_text_in_any_outgoing_request(env, tmp_path):
         assert s not in blob
     for t in f.ticket_text:
         assert t not in blob
-    assert 'kb_id' in blob and 'heading' in blob and "v_kpi_bq05_renewals" in blob   # KB text and tool results did go
+    assert 'kb_id' in blob and 'best_section' in blob and "v_kpi_bq05_renewals" in blob   # KB text and tool results did go
 
 
 def test_guard_refuses_names_staff_and_ticket_text(env):
@@ -259,3 +259,17 @@ def test_only_bracketed_citations_count_and_brackets_split():
 def test_numbered_list_markers_are_not_figures():
     from pipeline.assistant.ask import _numbers
     assert [w for w, _, _ in _numbers("Steps:\n1. Reset it\n2) Wait 12 hours\n  3. Done, 4 users")] == ["12", "4"]
+
+
+def test_kb_tool_sends_full_articles_in_unchanged_rank_order(env):
+    from pipeline.retrieval import index as kb
+    cfg = assistant_config()["knowledge_base"]
+    q = "resolution target for P2 ticket"
+    out = kb_tool.search(q, cfg, env["idx"])
+    ranked = [r["kb_id"] for r in kb.search(q, k=cfg["top_k"], index_path=env["idx"])]
+    assert [r["kb_id"] for r in out["results"]][:len(ranked)] == ranked          # ranking unchanged
+    first = out["results"][0]
+    assert first["kb_id"] == "KB-0045" and first["best_section"] == "Reporting"
+    assert "## Priorities" in first["text"] and "## Reporting" in first["text"]   # whole article, not one section
+    headings = first["text"].split("## ")[1:]
+    assert len(headings) == len([s for s in kb._load(str(env["idx"]))[0] if s[1] == "KB-0045"])
