@@ -1,0 +1,161 @@
+# 20 tuning questions. See README.md. Written from knowledge_base/ only, 2026-10-18.
+questions:
+  - id: T01
+    type: fact
+    question: "What is the resolution target for a P2 ticket?"
+    expected_sources: [KB-0045]
+    must_not_cite: []
+    answer_must_include: ["8 hours"]
+    correct_behaviour: "States 8 hours, elapsed time from when the ticket is opened."
+
+  - id: T02
+    type: paraphrase
+    question: "A user's Outlook closes a few seconds after it opens, but webmail works. What should the agent try first?"
+    expected_sources: [KB-0002]
+    must_not_cite: []
+    answer_must_include: ["start Outlook in safe mode", "add-ins"]
+    correct_behaviour: "Start Outlook in safe mode (hold Ctrl) to rule out add-ins, then switch add-ins off one at a time."
+
+  - id: T03
+    type: superseded
+    question: "The whole office has lost its internet connection. Should the customer email the service desk and restart the router?"
+    expected_sources: [KB-0015, KB-0041, KB-0046, KB-0031]
+    must_not_cite: [KB-0026]
+    answer_must_include: ["phone, not email", "do not restart the router", "P1 if the whole business is affected"]
+    correct_behaviour: "No to both: report it by phone, and don't restart the router, because it clears the logs and can interrupt the backup connection. Must not repeat the old KB-0026 advice."
+
+  - id: T04
+    type: conflict
+    question: "A user has a new phone. Can they re-register the authenticator app themselves, or must an agent do it with them?"
+    expected_sources: [KB-0008, KB-0030]
+    must_not_cite: []
+    answer_must_include: ["the two articles disagree", "KB-0008: the user registers on their own device", "KB-0030: an agent registers it with the user"]
+    correct_behaviour: "Says the current guidance conflicts, cites both articles and does not pick one silently. May suggest the conflict is resolved by the KB owner."
+
+  - id: T05
+    type: fact
+    question: "How long are nightly backups kept?"
+    expected_sources: [KB-0049, KB-0024, KB-0042, KB-0025]
+    must_not_cite: []
+    answer_must_include: ["30 days"]
+    correct_behaviour: "30 days (30 daily copies)."
+
+  - id: T06
+    type: fact
+    question: "What is the minimum password length?"
+    expected_sources: [KB-0050, KB-0005, KB-0027, KB-0035, KB-0006]
+    must_not_cite: []
+    answer_must_include: ["12 characters"]
+    correct_behaviour: "At least 12 characters; may add that multi-factor authentication is required."
+
+  - id: T07
+    type: fact
+    question: "How should the service desk give a user their temporary password?"
+    expected_sources: [KB-0005, KB-0027, KB-0022]
+    must_not_cite: []
+    answer_must_include: ["by phone", "never by email"]
+    correct_behaviour: "By phone, never by email, and the user must change it at next sign-in."
+
+  - id: T08
+    type: paraphrase
+    question: "Scans from the copier have stopped arriving in people's inboxes, but printing still works. What is the likely cause?"
+    expected_sources: [KB-0013]
+    must_not_cite: []
+    answer_must_include: ["the copier's scanning account password has expired or the account is blocked", "or the email service no longer accepts the copier's sign-in method"]
+    correct_behaviour: "Names the scanning account / sign-in method as the likely cause, and mentions checking junk or quarantine and the copier's error first."
+
+  - id: T09
+    type: fact
+    question: "After a leaver's account is disabled, how long can their manager access the leaver's mailbox?"
+    expected_sources: [KB-0007, KB-0034, KB-0050]
+    must_not_cite: []
+    answer_must_include: ["30 days", "converted to a shared mailbox"]
+    correct_behaviour: "30 days, through the mailbox converted to a shared mailbox; then it is reviewed with the customer."
+
+  - id: T10
+    type: multi_doc
+    question: "When is a P3 ticket escalated from first line to an engineer?"
+    expected_sources: [KB-0047, KB-0045]
+    must_not_cite: []
+    answer_must_include: ["50% of the resolution target", "24-hour target", "after 12 hours"]
+    correct_behaviour: "When unresolved at first line at half its 24-hour resolution target, i.e. after 12 hours. An agent may escalate earlier if clearly needed."
+
+  - id: T11
+    type: fact
+    question: "What priority is a reported phishing email that nobody interacted with, and when does it become a P2?"
+    expected_sources: [KB-0021]
+    must_not_cite: []
+    answer_must_include: ["P3", "P2 if several staff received it and someone clicked a link", "or a finance user received a payment request"]
+    correct_behaviour: "P3, raised to P2 in either of the two stated cases."
+
+  - id: T12
+    type: paraphrase
+    question: "My account keeps locking again shortly after the service desk unlocks it. Why?"
+    expected_sources: [KB-0005, KB-0027, KB-0035]
+    must_not_cite: []
+    answer_must_include: ["an old password saved on another device", "update the password on every device"]
+    correct_behaviour: "An old password stored on a phone mail app or second computer keeps failing; update it everywhere."
+
+  - id: T13
+    type: abstain
+    question: "What is the direct phone number for the out-of-hours on-call engineer?"
+    expected_sources: []
+    must_not_cite: []
+    answer_must_include: []
+    correct_behaviour: "Says the knowledge base does not give a number. May add that P1s out of hours go to the on-call engineer via the service desk phone route. Must not invent a number."
+
+  - id: T14
+    type: abstain
+    question: "How much does a replacement laptop power adapter cost in the shop?"
+    expected_sources: []
+    must_not_cite: []
+    answer_must_include: []
+    correct_behaviour: "Says the knowledge base gives no price. May add that adapters can be ordered through the shop and prices exclude VAT. Must not invent a price."
+
+  - id: T15
+    type: fact
+    question: "Which problems are not suitable for a remote support session?"
+    expected_sources: [KB-0032]
+    must_not_cite: []
+    answer_must_include: ["the computer will not start", "the network connection itself is the problem", "hardware needs replacing"]
+    correct_behaviour: "Lists all three."
+
+  - id: T16
+    type: fact
+    question: "Should a user forward a suspicious email to the service desk so we can look at it?"
+    expected_sources: [KB-0021, KB-0036]
+    must_not_cite: []
+    answer_must_include: ["do not forward it", "use the report button", "phone the service desk if they clicked a link or entered their password"]
+    correct_behaviour: "No: report it with the report button; forwarding spreads it. Phone if they already clicked or typed a password."
+
+  - id: T17
+    type: multi_doc
+    question: "A user deleted a file from the shared drive six weeks ago and needs it back. Can we restore it?"
+    expected_sources: [KB-0024, KB-0049, KB-0042]
+    must_not_cite: []
+    answer_must_include: ["not from backup", "backups are kept for 30 days"]
+    correct_behaviour: "Not from backup, because six weeks is beyond the 30-day retention. May suggest checking the recycle bin or version history first."
+
+  - id: T18
+    type: fact
+    question: "When is a confirmed compromised account treated as a P1 rather than a P2?"
+    expected_sources: [KB-0022]
+    must_not_cite: []
+    answer_must_include: ["access to finance systems or customer data"]
+    correct_behaviour: "P1 if the account can reach finance systems or customer data; otherwise P2."
+
+  - id: T19
+    type: abstain
+    question: "Does Northgate support Apple Mac computers?"
+    expected_sources: []
+    must_not_cite: []
+    answer_must_include: []
+    correct_behaviour: "Says the knowledge base does not cover Mac support. Must not guess either way."
+
+  - id: T20
+    type: fact
+    question: "When is the service desk open, and when is a P3 ticket raised on a Saturday picked up?"
+    expected_sources: [KB-0046, KB-0031]
+    must_not_cite: []
+    answer_must_include: ["Monday to Friday, 08:00 to 18:00", "excluding bank holidays", "picked up when the service desk next opens"]
+    correct_behaviour: "States the hours and that P2-P4 tickets raised out of hours wait until the desk next opens (only P1 has 24/7 cover)."

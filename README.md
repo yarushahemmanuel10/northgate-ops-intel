@@ -65,6 +65,7 @@ uv run python -m pipeline.warehouse.review_sheet   # review_sheet.csv for the qu
 uv run python -m pipeline.warehouse.apply_review   # apply config/review_decisions.csv and show the effect
 uv run python -m eval.kpi_checks                   # BQ-05 and BQ-12 figures explained against the answer key (D-032)
 uv run python -m eval.sla_eval                     # SLA breach rates against the generator, every difference explained (D-033)
+uv run python -m pipeline.alerts.run               # evaluate config/alert_rules.yaml into data/alerts/alerts.duckdb (D-034)
 ```
 
 Or run the whole chain in one go, with the shop API running in another terminal:
@@ -75,8 +76,8 @@ uv run python -m pipeline.run                  # ingest, validate, resolve, dedu
 
 ## Dashboard
 
-Four pages (Overview, Service, Customers, Data quality) built on the warehouse views; every number
-comes from a view (D-032). Synthetic data: the banner on every page says so.
+Five pages (Overview, Service, Customers, Data quality, Alerts) built on the warehouse views and the
+alert history; every number comes from a view (D-032, D-034). Synthetic data: the banner on every page says so.
 
 On a Mac, from the project folder:
 
@@ -114,6 +115,8 @@ Stop it with Ctrl+C. To rebuild everything from the raw files first, start the s
 | `data/validated/` | No | Typed tables and validation findings | `python -m pipeline.validate.run` |
 | `data/resolved/` | No | Crosswalk of every source record to a CRM account, and the review queue | `python -m pipeline.resolve.run` |
 | `data/warehouse/` | No | Duplicate marks, the DuckDB star schema (`northgate.duckdb`) and Power BI CSV exports in `exports/` | `python -m pipeline.run` (whole chain) |
+| `data/alerts/` | No | Alert history (alerts, run log), kept across warehouse rebuilds | `python -m pipeline.alerts.run` (last step of `pipeline.run`) |
+| `eval/questions/` | Yes | The reviewer's knowledge-base evaluation questions (20 tuning, 10 held out) | Written by the reviewer |
 | `.env` | No | API key (never committed) | You |
 
 Everything under `data/` is reproduced exactly from the seed in `config/generator.yaml`.

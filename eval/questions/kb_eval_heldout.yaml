@@ -1,0 +1,82 @@
+# 10 HELD-OUT questions. Do not open while building or tuning. See README.md.
+# Written from knowledge_base/ only, 2026-10-18.
+questions:
+  - id: H01
+    type: superseded
+    question: "Our office has no internet. What should we put in the email to the service desk?"
+    expected_sources: [KB-0015, KB-0041, KB-0046, KB-0031]
+    must_not_cite: [KB-0026]
+    answer_must_include: ["do not email: phone the service desk", "an email from a site with no internet may never arrive"]
+    correct_behaviour: "Corrects the premise: a site-wide outage is reported by phone (P1/P2), not email. Must not answer with KB-0026's list of what to put in the email."
+
+  - id: H02
+    type: conflict
+    question: "Is it fine to leave a user to set up the authenticator app on their replacement phone on their own?"
+    expected_sources: [KB-0008, KB-0030]
+    must_not_cite: []
+    answer_must_include: ["the two articles disagree", "KB-0008 says yes", "KB-0030 says no, register it together"]
+    correct_behaviour: "Flags the conflict between two current articles and cites both, rather than giving a confident yes or no."
+
+  - id: H03
+    type: paraphrase
+    question: "The codes from a user's authenticator app keep being rejected. How do we fix it?"
+    expected_sources: [KB-0008, KB-0030]
+    must_not_cite: []
+    answer_must_include: ["set the phone's date and time to automatic"]
+    correct_behaviour: "The phone's clock is wrong; switch on automatic date and time. Both MFA articles agree on this."
+
+  - id: H04
+    type: multi_doc
+    question: "Can staff working from home print to the office printer, and do they need the VPN to open cloud files?"
+    expected_sources: [KB-0033, KB-0014, KB-0040]
+    must_not_cite: []
+    answer_must_include: ["office printers are not available from home", "cloud files work without the VPN", "shared drive files need the VPN"]
+    correct_behaviour: "No to office printing from home; cloud files don't need the VPN but the shared drive does."
+
+  - id: H05
+    type: fact
+    question: "A P1 ticket is still open three hours after it was opened. Who must it be reported to?"
+    expected_sources: [KB-0047, KB-0015]
+    must_not_cite: []
+    answer_must_include: ["the operations director", "P1 still open 2 hours after opening"]
+    correct_behaviour: "The operations director, because any P1 open 2 hours after opening is reported to them."
+
+  - id: H06
+    type: abstain
+    question: "What is the monthly fee for Northgate's managed backup service?"
+    expected_sources: []
+    must_not_cite: []
+    answer_must_include: []
+    correct_behaviour: "Says the knowledge base does not give prices for services. Must not invent a fee."
+
+  - id: H07
+    type: fact
+    question: "A laptop's case has started to bulge. What should the user do?"
+    expected_sources: [KB-0038]
+    must_not_cite: []
+    answer_must_include: ["stop using it", "unplug it", "contact the service desk", "do not remove the battery yourself"]
+    correct_behaviour: "Possible swollen battery: stop, unplug, contact the service desk, don't remove the battery."
+
+  - id: H08
+    type: paraphrase
+    question: "Nobody in the company is receiving emails from outside. What priority should the ticket get?"
+    expected_sources: [KB-0004]
+    must_not_cite: []
+    answer_must_include: ["at least P2", "phone the customer with updates"]
+    correct_behaviour: "At least P2 when no external email reaches the business, with phone updates to the customer."
+
+  - id: H09
+    type: fact
+    question: "Who should receive a new starter's sign-in details?"
+    expected_sources: [KB-0006, KB-0050, KB-0034]
+    must_not_cite: []
+    answer_must_include: ["the line manager", "not the new starter's personal email"]
+    correct_behaviour: "The line manager, who passes them on on the first day; never a personal email address."
+
+  - id: H10
+    type: fact
+    question: "Can ticket text that contains personal data be passed to an AI tool?"
+    expected_sources: [KB-0048]
+    must_not_cite: []
+    answer_must_include: ["only after the personal data is masked"]
+    correct_behaviour: "Only once personal data in the ticket text has been masked (data handling policy)."

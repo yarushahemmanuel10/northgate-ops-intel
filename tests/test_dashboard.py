@@ -18,7 +18,7 @@ from pipeline.warehouse.dedup import run as find_duplicates
 from pipeline.warehouse.load import DECISION_COLUMNS, build, load_config as load_warehouse
 from shop_api.app import create_app
 
-PAGES = ["overview", "service", "customers", "data_quality"]
+PAGES = ["overview", "service", "customers", "data_quality", "alerts"]
 DASH = ROOT / "dashboard"
 
 
@@ -37,6 +37,9 @@ def db(tmp_path_factory):
     empty = m("d") / "d.csv"
     empty.write_text(",".join(DECISION_COLUMNS) + "\n", encoding="utf-8")
     build(s, load_warehouse(), validated, resolved, wh, empty)
+    from pipeline.alerts.run import run as run_alerts
+    import datetime as dt
+    run_alerts(s, now=dt.datetime(2026, 10, 19, 7, 0), warehouse_db=wh / "northgate.duckdb", alerts_db=wh / "alerts.duckdb")
     return wh / "northgate.duckdb"
 
 
@@ -44,9 +47,10 @@ def db(tmp_path_factory):
 def pages(db):
     import os
     os.environ["NORTHGATE_DB"] = str(db)
+    os.environ["NORTHGATE_ALERTS_DB"] = str(db.parent / "alerts.duckdb")
     out = {p: AppTest.from_file(str(DASH / "pages" / f"{p}.py"), default_timeout=60).run() for p in PAGES}
     yield out
-    del os.environ["NORTHGATE_DB"]
+    del os.environ["NORTHGATE_DB"], os.environ["NORTHGATE_ALERTS_DB"]
 
 
 def _view(db, sql):
@@ -134,3 +138,14 @@ def test_dashboard_fixes_from_review(pages):
     match = next(d.value for d in pages["data_quality"].dataframe if "Match" in d.value.columns)
     assert set(match["Match"]) <= {"Matched automatically", "Decided in review", "Waiting for review", "Not matched"}
     assert "Waiting for review" in set(match["Match"]) and "human_review" not in set(match["Match"])
+
+
+def test_alerts_page_shows_the_runner_output(pages, db):
+    at = pages["alerts"]
+    m = {x.label: x.value for x in at.metric}
+    con = duckdb.connect(str(db.parent / "alerts.duckdb"), read_only=True)
+    active, high = con.execute("SELECT active, active_high FROM v_alerts_summary").fetchone()
+    con.close()
+    assert m["Active alerts"] == str(active) and m["High (tickets about to breach, P1 open 2h+)"] == str(high) == "3"
+    table = at.dataframe[0].value
+    assert len(table) == active and list(table["Severity"])[:3] == ["high"] * 3

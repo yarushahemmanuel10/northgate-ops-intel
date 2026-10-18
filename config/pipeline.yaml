@@ -7,6 +7,7 @@ staging_dir: data/staging
 validated_dir: data/validated
 resolved_dir: data/resolved
 warehouse_dir: data/warehouse
+alerts_dir: data/alerts
 shop_api:
   base_url: "http://127.0.0.1:8765"
   page_size: 500

@@ -15,5 +15,6 @@ st.set_page_config(page_title="Northgate operations (synthetic)", layout="wide")
 pages = [st.Page("pages/overview.py", title="Overview", default=True),
          st.Page("pages/service.py", title="Service"),
          st.Page("pages/customers.py", title="Customers"),
-         st.Page("pages/data_quality.py", title="Data quality")]
+         st.Page("pages/data_quality.py", title="Data quality"),
+         st.Page("pages/alerts.py", title="Alerts")]
 st.navigation(pages).run()

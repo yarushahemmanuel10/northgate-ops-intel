@@ -58,25 +58,30 @@ def dirs(tmp_path_factory):
     find_duplicates(s, load_warehouse(), validated, warehouse)
     build_warehouse(s, load_warehouse(), validated, resolved, warehouse)
     write_staging(build_sheet(validated, resolved, warehouse / "duplicates.csv"), SHEET_COLUMNS, warehouse / "review_sheet.csv")
-    return {"truth": truth, "validated": validated, "resolved": resolved, "warehouse": warehouse}
+    from pipeline.alerts.run import run as run_alerts
+    alerts_db = m("alerts") / "alerts.duckdb"
+    run_alerts(s, warehouse_db=warehouse / "northgate.duckdb", alerts_db=alerts_db)
+    return {"truth": truth, "validated": validated, "resolved": resolved, "warehouse": warehouse, "alerts_db": alerts_db}
 
 
 # ---- data dictionary ----------------------------------------------------------------------
 
 def test_every_column_has_an_entry_and_every_entry_a_column(dirs):
     files = {f.stem: f for d in ("validated", "resolved", "warehouse") for f in dirs[d].glob("*.csv")}
-    con = duckdb.connect(str(dirs["warehouse"] / "northgate.duckdb"), read_only=True)
-    db = {}
-    for table, column in con.execute("SELECT table_name, column_name FROM information_schema.columns").fetchall():
-        db.setdefault(table, set()).add(column)
-    con.close()
+    db, layer_of = {}, {}
+    for layer, path in (("warehouse", dirs["warehouse"] / "northgate.duckdb"), ("alerts", dirs["alerts_db"])):
+        con = duckdb.connect(str(path), read_only=True)
+        for table, column in con.execute("SELECT table_name, column_name FROM information_schema.columns").fetchall():
+            db.setdefault(table, set()).add(column)
+            layer_of[table] = layer
+        con.close()
     assert not set(files) & set(db)
     assert set(files) | set(db) == set(DICTIONARY["tables"]), "a table is missing from the dictionary, or listed but not written"
     for name in db:
         t = DICTIONARY["tables"][name]
         entries = set(t["columns"]) | set(t["lineage"])
         assert db[name] == entries, f"{name}: missing {sorted(db[name] - entries)}, extra {sorted(entries - db[name])}"
-        assert t["layer"] == "warehouse", name
+        assert t["layer"] == layer_of[name], name
     for name, f in files.items():
         with open(f, encoding="utf-8", newline="") as fh:
             columns = set(csv.DictReader(fh).fieldnames)

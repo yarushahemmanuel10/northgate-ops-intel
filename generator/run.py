@@ -35,6 +35,8 @@ FILES_TABLE = """| Path | Committed? | What it is | Produced by |
 | `data/validated/` | No | Typed tables and validation findings | `python -m pipeline.validate.run` |
 | `data/resolved/` | No | Crosswalk of every source record to a CRM account, and the review queue | `python -m pipeline.resolve.run` |
 | `data/warehouse/` | No | Duplicate marks, the DuckDB star schema (`northgate.duckdb`) and Power BI CSV exports in `exports/` | `python -m pipeline.run` (whole chain) |
+| `data/alerts/` | No | Alert history (alerts, run log), kept across warehouse rebuilds | `python -m pipeline.alerts.run` (last step of `pipeline.run`) |
+| `eval/questions/` | Yes | The reviewer's knowledge-base evaluation questions (20 tuning, 10 held out) | Written by the reviewer |
 | `.env` | No | API key (never committed) | You |
 
 Everything under `data/` is reproduced exactly from the seed in `config/generator.yaml`."""

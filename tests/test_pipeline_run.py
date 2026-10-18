@@ -22,7 +22,7 @@ DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 def _settings(raw, root):
     s = load_settings()
     s = dict(s, raw_dir=raw, staging_dir=root / "staging", validated_dir=root / "validated",
-             resolved_dir=root / "resolved", warehouse_dir=root / "warehouse")
+             resolved_dir=root / "resolved", warehouse_dir=root / "warehouse", alerts_dir=root / "alerts")
     return dict(s, shop_api=dict(s["shop_api"], base_url="http://testserver"))
 
 

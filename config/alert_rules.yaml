@@ -1,0 +1,52 @@
+# Alert rules (step 5.1, D-034). Read by pipeline/alerts/run.py.
+#
+# Each rule selects rows from one warehouse KPI view; the view holds all the logic and every
+# threshold (config/kpi_thresholds.yaml, D-030), so a rule only names the view, a filter on its
+# columns, the column that identifies the record, and a reason written from the row's columns.
+# A rule may only read a view (its name must start with v_); the runner refuses anything else.
+
+rules:
+  - id: ticket_about_to_breach
+    bq: BQ-02
+    severity: high
+    view: v_kpi_bq02_open_tickets
+    where: "alert = 'about to breach'"
+    record_key: ticket_id
+    customer: customer_id
+    reason: "{priority} ticket {ticket_id} open {age_hours:.1f} h: {share_of_target_used:.0%} of its {resolution_target_hours} h resolution target used"
+
+  - id: p1_open_2h
+    bq: BQ-02
+    severity: high
+    view: v_kpi_bq02_open_tickets
+    where: "p1_management_escalation"
+    record_key: ticket_id
+    customer: customer_id
+    reason: "P1 ticket {ticket_id} open {age_hours:.1f} h: report to the operations director (fact sheet §1.9)"
+
+  - id: customer_at_risk
+    bq: BQ-06
+    severity: medium
+    view: v_at_risk
+    where: "at_risk"
+    record_key: customer_id
+    customer: customer_id
+    reason: "Retention rank {retention_rank}: {signals_fired}"
+
+  - id: unusual_ticket_volume
+    bq: BQ-04
+    severity: medium
+    view: v_kpi_bq04_ticket_volume
+    where: "unusual_volume AND year_month = (SELECT strftime(as_of_date, '%Y-%m') FROM v_meta)"
+    record_key: [customer_id, year_month]
+    customer: customer_id
+    reason: "{tickets} tickets in {year_month}"
+
+  - id: crm_billing_mismatch
+    bq: BQ-13
+    severity: low
+    view: v_kpi_bq13_crm_telecoms
+    where: "check_result <> 'matched, dates agree'"
+    record_key: [customer_id, check_result]
+    customer: customer_id
+    reason: "{check_result}"

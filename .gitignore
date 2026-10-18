@@ -10,6 +10,7 @@ data/staging/
 data/validated/
 data/resolved/
 data/warehouse/
+data/alerts/
 data/processed/
 data/rejected/
 data/*.duckdb

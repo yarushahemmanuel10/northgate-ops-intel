@@ -1,6 +1,7 @@
 # Data dictionary (step 2.4, D-022). Fictional company, synthetic data.
 #
-# One entry per column of every table in data/validated/, data/resolved/ and data/warehouse/ (tested both
+# One entry per column of every table in data/validated/, data/resolved/, data/warehouse/ and the alert
+# history data/alerts/alerts.duckdb (tested both
 # ways in tests/test_semantic.py). For each column:
 #   description    what the value means
 #   type           text | date | timestamp | decimal | integer | boolean | code
@@ -919,3 +920,106 @@ tables:
       names_waiting: {description: "Distinct names still waiting", type: integer, personal_data: false, bqs: [BQ-14]}
       records_on_unknown: {description: "Fact rows on the Unknown customer (waiting plus unmatched)", type: integer, personal_data: false, bqs: [BQ-14]}
       revenue_on_unknown: {description: "Revenue on the Unknown customer", type: decimal, personal_data: false, bqs: [BQ-07, BQ-14]}
+
+  # ---- alert history: data/alerts/alerts.duckdb (step 5.1, D-034); kept across warehouse rebuilds ----
+  alerts:
+    layer: alerts
+    grain: one row per alert rule and record, active or cleared (never deleted)
+    lineage: []
+    columns:
+      alert_id: {description: "rule_id|record_key", type: code, personal_data: false, bqs: [BQ-02, BQ-04, BQ-06, BQ-13]}
+      rule_id: {description: "Rule in config/alert_rules.yaml", type: code, personal_data: false, bqs: [BQ-02, BQ-04, BQ-06, BQ-13]}
+      bq: {description: "Business question the rule serves", type: code, personal_data: false, bqs: [BQ-02, BQ-04, BQ-06, BQ-13]}
+      severity: {description: "high, medium or low", type: code, personal_data: false, bqs: [BQ-02]}
+      record_key: {description: "Ticket ID, customer ID, or customer|month / customer|check", type: code, personal_data: false, bqs: [BQ-02, BQ-04, BQ-06, BQ-13]}
+      customer_id: {description: "Canonical customer, or UNKNOWN", type: code, personal_data: false, bqs: [BQ-02, BQ-04, BQ-06, BQ-13]}
+      company_name: {description: "Business name, looked up locally from dim_customer", type: text, personal_data: false, personal_data_note: "business name; stays local", bqs: [BQ-06]}
+      reason: {description: "Why the alert was raised, written from the view's columns", type: text, personal_data: false, bqs: [BQ-02, BQ-04, BQ-06, BQ-13]}
+      status: {description: "active or cleared", type: code, personal_data: false, bqs: [BQ-02]}
+      first_raised_at: {description: "When it was (last) raised, UTC", type: timestamp, personal_data: false, bqs: [BQ-02]}
+      last_seen_at: {description: "Last run that found it, UTC", type: timestamp, personal_data: false, bqs: [BQ-02]}
+      cleared_at: {description: "When a run no longer found it, UTC; empty while active", type: timestamp, personal_data: false, bqs: [BQ-02]}
+      times_raised: {description: "How many times it has been raised (reopened after clearing)", type: integer, personal_data: false, bqs: [BQ-02]}
+      data_as_of: {description: "As-of date of the warehouse the run read", type: date, personal_data: false, bqs: [BQ-14]}
+
+  run_log:
+    layer: alerts
+    grain: one row per alert run
+    lineage: []
+    columns:
+      run_id: {description: "Run number", type: integer, personal_data: false, bqs: [BQ-14]}
+      started_at: {description: "Start, UTC", type: timestamp, personal_data: false, bqs: [BQ-14]}
+      finished_at: {description: "End, UTC", type: timestamp, personal_data: false, bqs: [BQ-14]}
+      data_as_of: {description: "As-of date of the warehouse read", type: date, personal_data: false, bqs: [BQ-14]}
+      status: {description: "ok or failed", type: code, personal_data: false, bqs: [BQ-14]}
+      rules_evaluated: {description: "Rules run", type: integer, personal_data: false, bqs: [BQ-14]}
+      alerts_active: {description: "Active alerts after the run", type: integer, personal_data: false, bqs: [BQ-14]}
+      alerts_new: {description: "Raised or reopened by the run", type: integer, personal_data: false, bqs: [BQ-14]}
+      alerts_cleared: {description: "Cleared by the run", type: integer, personal_data: false, bqs: [BQ-14]}
+      error: {description: "Why a failed run failed", type: text, personal_data: false, bqs: [BQ-14]}
+
+  run_rules:
+    layer: alerts
+    grain: one row per run and rule
+    lineage: []
+    columns:
+      run_id: {description: "Run number", type: integer, personal_data: false, bqs: [BQ-14]}
+      rule_id: {description: "Rule", type: code, personal_data: false, bqs: [BQ-14]}
+      matched: {description: "Rows the rule matched in that run", type: integer, personal_data: false, bqs: [BQ-14]}
+
+  v_alerts_active:
+    layer: alerts
+    grain: one row per active alert
+    lineage: []
+    columns:
+      rule_id: {description: "Rule", type: code, personal_data: false, bqs: [BQ-02, BQ-04, BQ-06, BQ-13]}
+      bq: {description: "Business question", type: code, personal_data: false, bqs: [BQ-02]}
+      severity: {description: "high, medium or low", type: code, personal_data: false, bqs: [BQ-02]}
+      severity_rank: {description: "1 high, 2 medium, 3 low, for ordering", type: integer, personal_data: false, bqs: [BQ-02]}
+      record_key: {description: "Record", type: code, personal_data: false, bqs: [BQ-02]}
+      customer_id: {description: "Customer", type: code, personal_data: false, bqs: [BQ-06]}
+      company_name: {description: "Business name (local)", type: text, personal_data: false, bqs: [BQ-06]}
+      reason: {description: "Why", type: text, personal_data: false, bqs: [BQ-02, BQ-15]}
+      first_raised_at: {description: "First raised, UTC", type: timestamp, personal_data: false, bqs: [BQ-02]}
+      last_seen_at: {description: "Last seen, UTC", type: timestamp, personal_data: false, bqs: [BQ-02]}
+      times_raised: {description: "Times raised", type: integer, personal_data: false, bqs: [BQ-02]}
+      data_as_of: {description: "Warehouse as-of date", type: date, personal_data: false, bqs: [BQ-14]}
+
+  v_alerts_by_rule:
+    layer: alerts
+    grain: one row per rule
+    lineage: []
+    columns:
+      rule_id: {description: "Rule", type: code, personal_data: false, bqs: [BQ-14]}
+      bq: {description: "Business question", type: code, personal_data: false, bqs: [BQ-14]}
+      severity: {description: "Severity", type: code, personal_data: false, bqs: [BQ-14]}
+      active: {description: "Active alerts", type: integer, personal_data: false, bqs: [BQ-14, BQ-15]}
+      cleared: {description: "Cleared alerts", type: integer, personal_data: false, bqs: [BQ-14]}
+
+  v_alerts_summary:
+    layer: alerts
+    grain: one row
+    lineage: []
+    columns:
+      active: {description: "Active alerts", type: integer, personal_data: false, bqs: [BQ-15]}
+      active_high: {description: "Active, high severity", type: integer, personal_data: false, bqs: [BQ-02, BQ-15]}
+      active_medium: {description: "Active, medium severity", type: integer, personal_data: false, bqs: [BQ-06]}
+      active_low: {description: "Active, low severity", type: integer, personal_data: false, bqs: [BQ-13]}
+      last_ok_run_at: {description: "Last successful run, UTC", type: timestamp, personal_data: false, bqs: [BQ-14]}
+      last_run_status: {description: "Status of the latest run", type: code, personal_data: false, bqs: [BQ-14]}
+
+  v_alert_runs:
+    layer: alerts
+    grain: one row per run (run_log as a view)
+    lineage: []
+    columns:
+      run_id: {description: "Run", type: integer, personal_data: false, bqs: [BQ-14]}
+      started_at: {description: "Start, UTC", type: timestamp, personal_data: false, bqs: [BQ-14]}
+      finished_at: {description: "End, UTC", type: timestamp, personal_data: false, bqs: [BQ-14]}
+      data_as_of: {description: "Warehouse as-of date", type: date, personal_data: false, bqs: [BQ-14]}
+      status: {description: "ok or failed", type: code, personal_data: false, bqs: [BQ-14]}
+      rules_evaluated: {description: "Rules run", type: integer, personal_data: false, bqs: [BQ-14]}
+      alerts_active: {description: "Active after the run", type: integer, personal_data: false, bqs: [BQ-14]}
+      alerts_new: {description: "New or reopened", type: integer, personal_data: false, bqs: [BQ-14]}
+      alerts_cleared: {description: "Cleared", type: integer, personal_data: false, bqs: [BQ-14]}
+      error: {description: "Failure reason", type: text, personal_data: false, bqs: [BQ-14]}

@@ -22,11 +22,16 @@ def db_path() -> Path:
     return Path(os.environ.get("NORTHGATE_DB", ROOT / "data" / "warehouse" / "northgate.duckdb"))
 
 
-def query(sql: str) -> pd.DataFrame:
-    """Run one SELECT against the warehouse, read-only."""
+def alerts_db_path() -> Path:
+    """The alert history (pipeline.alerts.run): NORTHGATE_ALERTS_DB if set, else data/alerts/alerts.duckdb."""
+    return Path(os.environ.get("NORTHGATE_ALERTS_DB", ROOT / "data" / "alerts" / "alerts.duckdb"))
+
+
+def query(sql: str, source: str = "warehouse") -> pd.DataFrame:
+    """Run one SELECT, read-only, against the warehouse or (source="alerts") the alert history."""
     if not sql.lstrip().upper().startswith("SELECT"):
         raise ValueError("the dashboard only selects from the warehouse")
-    con = duckdb.connect(str(db_path()), read_only=True)
+    con = duckdb.connect(str(alerts_db_path() if source == "alerts" else db_path()), read_only=True)
     try:
         return con.execute(sql).df()
     finally:

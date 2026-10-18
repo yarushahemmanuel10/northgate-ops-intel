@@ -2,8 +2,8 @@
 
 Run:  python -m pipeline.run   (the shop API must be running, see README)
 
-ingest -> validate -> resolve -> dedup -> load -> export, then a short summary: row counts,
-revenue by line and the Unknown customer total. If the shop API is not reachable it stops with
+ingest -> validate -> resolve -> dedup -> load -> export -> alerts, then a short summary: row counts,
+revenue by line, the Unknown customer total and active alerts. If the shop API is not reachable it stops with
 the same message as ingestion, before anything downstream is rebuilt.
 """
 from __future__ import annotations
@@ -14,6 +14,7 @@ import sys
 import duckdb
 import httpx
 
+from pipeline.alerts import run as alerts
 from pipeline.ingest.run import ingest
 from pipeline.ingest.shop_api import ShopApiUnavailable
 from pipeline.resolve.run import load_config as resolution_config, resolve
@@ -31,7 +32,9 @@ def run_all(settings: dict, client: httpx.Client | None = None) -> dict:
     dedup.run(settings, wcfg)
     built = build(settings, wcfg)
     exported = export.run(settings, wcfg)
-    return {"rows": built["rows"], "exported": exported, "summary": summary(settings["warehouse_dir"] / wcfg["database"])}
+    raised = alerts.run(settings)
+    return {"rows": built["rows"], "exported": exported, "alerts": raised,
+            "summary": summary(settings["warehouse_dir"] / wcfg["database"])}
 
 
 def summary(db) -> dict:
@@ -66,6 +69,9 @@ def main() -> None:
     print(f"  Total              {math.fsum(r[2] for r in out['summary']['revenue']):>14,.2f}")
     print(f"Unknown customer: {out['summary']['unknown_rows']:,} rows, revenue £{out['summary']['unknown_revenue']:,.2f}")
     print(f"Exports: {len(out['exported'])} CSV files in {settings['warehouse_dir'] / 'exports'} (ticket_text not exported)")
+    a = out["alerts"]
+    print(f"Alerts: {a['active']} active ({a['new']} new, {a['cleared']} cleared since the last run), "
+          + ", ".join(f"{k} {v}" for k, v in a["by_rule"].items()))
 
 
 if __name__ == "__main__":
