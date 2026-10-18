@@ -35,6 +35,10 @@ class MissingKey(Exception):
     pass
 
 
+class ApiFailed(Exception):
+    """The API (or a proxy in front of it) refused or failed the call. The message never includes the key."""
+
+
 def load_config() -> dict:
     with open(CONFIG_FILE, encoding="utf-8") as fh:
         return yaml.safe_load(fh)
@@ -107,6 +111,14 @@ class Caller:
         if spent >= limit:
             raise BudgetExceeded(f"Spending limit reached: £{spent:.2f} logged of the £{limit:.2f} limit "
                                  f"(see {self.log}). No call was made.")
-        resp = self.client.messages.create(**request).model_dump(mode="json")
+        import anthropic
+        try:
+            resp = self.client.messages.create(**request).model_dump(mode="json")
+        except anthropic.APIStatusError as exc:
+            r = exc.response
+            via = "Anthropic" if "request-id" in r.headers else "a proxy or network device, not Anthropic"
+            raise ApiFailed(f"API call failed: HTTP {r.status_code} from {via}. No tokens were charged.") from None
+        except anthropic.APIConnectionError:
+            raise ApiFailed("API call failed: could not connect to the Claude API. No tokens were charged.") from None
         hit.write_text(json.dumps(resp), encoding="utf-8")
         return resp, self._write_log(request["model"], resp.get("usage") or {}, cached=False)

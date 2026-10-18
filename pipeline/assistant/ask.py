@@ -17,7 +17,7 @@ from pathlib import Path
 
 from pipeline.assistant import kb_tool
 from pipeline.assistant.guard import Forbidden, LeakBlocked, names_to_ids
-from pipeline.assistant.llm import BudgetExceeded, Caller, MissingKey, load_config
+from pipeline.assistant.llm import ApiFailed, BudgetExceeded, Caller, MissingKey, load_config
 from pipeline.tools import data as data_tools
 from pipeline.tools.names import add_names, lookup
 
@@ -82,7 +82,7 @@ class Assistant:
                 messages += [{"role": "assistant", "content": _clean(content)}, {"role": "user", "content": outputs}]
             else:
                 content = [{"type": "text", "text": "Stopped: too many tool rounds for one question."}]
-        except (BudgetExceeded, MissingKey, LeakBlocked) as exc:
+        except (BudgetExceeded, MissingKey, LeakBlocked, ApiFailed) as exc:
             return self._finish(question, sent_question, str(exc), tool_log, results, calls, stopped=True)
         text = "\n".join(b["text"] for b in content if b["type"] == "text").strip()
         return self._finish(question, sent_question, text, tool_log, results, calls)

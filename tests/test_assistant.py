@@ -229,3 +229,16 @@ def test_env_example_holds_no_key():
     keys = [l for l in lines if l.strip().startswith("ANTHROPIC_API_KEY")]
     assert keys == ["ANTHROPIC_API_KEY="], "ANTHROPIC_API_KEY= in .env.example must have nothing after it"
     assert all(l.strip().startswith("#") or l.strip().endswith("=") or not l.strip() for l in lines)
+
+
+def test_api_failure_ends_the_question_with_a_message(env, tmp_path):
+    import anthropic
+    import httpx
+
+    class Refusing(FakeClient):
+        def create(self, **request):
+            r = httpx.Response(401, text="Unauthorized", request=httpx.Request("POST", "https://api.anthropic.com"))
+            raise anthropic.AuthenticationError("Unauthorized", response=r, body=None)
+    a = Assistant(client=Refusing([]), warehouse_db=env["w"], alerts_db=env["a"], index_path=env["idx"], out_dir=tmp_path)
+    out = a.ask("What is the as-of date?")
+    assert out["stopped"] and "HTTP 401 from a proxy" in out["answer"] and not (tmp_path / "calls.jsonl").exists()
