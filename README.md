@@ -66,6 +66,9 @@ uv run python -m pipeline.warehouse.apply_review   # apply config/review_decisio
 uv run python -m eval.kpi_checks                   # BQ-05 and BQ-12 figures explained against the answer key (D-032)
 uv run python -m eval.sla_eval                     # SLA breach rates against the generator, every difference explained (D-033)
 uv run python -m pipeline.alerts.run               # evaluate config/alert_rules.yaml into data/alerts/alerts.duckdb (D-034)
+uv run python -m pipeline.retrieval.index          # build the KB search index data/retrieval/kb_index.duckdb (D-035)
+uv run python -m pipeline.retrieval.index printer offline   # ... and show the top 5 articles for a query
+uv run python -m eval.retrieval_eval               # retrieval scores on the 20 tuning questions (held-out file refused)
 ```
 
 Or run the whole chain in one go, with the shop API running in another terminal:
@@ -115,7 +118,8 @@ Stop it with Ctrl+C. To rebuild everything from the raw files first, start the s
 | `data/validated/` | No | Typed tables and validation findings | `python -m pipeline.validate.run` |
 | `data/resolved/` | No | Crosswalk of every source record to a CRM account, and the review queue | `python -m pipeline.resolve.run` |
 | `data/warehouse/` | No | Duplicate marks, the DuckDB star schema (`northgate.duckdb`) and Power BI CSV exports in `exports/` | `python -m pipeline.run` (whole chain) |
-| `data/alerts/` | No | Alert history (alerts, run log), kept across warehouse rebuilds | `python -m pipeline.alerts.run` (last step of `pipeline.run`) |
+| `data/alerts/` | No | Alert history (alerts, run log), kept across warehouse rebuilds | `python -m pipeline.alerts.run` (step of `pipeline.run`) |
+| `data/retrieval/` | No | KB search index (sections of current articles; superseded list) | `python -m pipeline.retrieval.index` (last step of `pipeline.run`) |
 | `eval/questions/` | Yes | The reviewer's knowledge-base evaluation questions (20 tuning, 10 held out) | Written by the reviewer |
 | `.env` | No | API key (never committed) | You |
 

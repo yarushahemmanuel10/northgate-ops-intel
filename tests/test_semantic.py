@@ -61,7 +61,11 @@ def dirs(tmp_path_factory):
     from pipeline.alerts.run import run as run_alerts
     alerts_db = m("alerts") / "alerts.duckdb"
     run_alerts(s, warehouse_db=warehouse / "northgate.duckdb", alerts_db=alerts_db)
-    return {"truth": truth, "validated": validated, "resolved": resolved, "warehouse": warehouse, "alerts_db": alerts_db}
+    from pipeline.retrieval.index import build as build_index
+    retrieval = m("retrieval")
+    build_index(s, validated, retrieval)
+    return {"truth": truth, "validated": validated, "resolved": resolved, "warehouse": warehouse, "alerts_db": alerts_db,
+            "retrieval_db": retrieval / "kb_index.duckdb"}
 
 
 # ---- data dictionary ----------------------------------------------------------------------
@@ -69,7 +73,8 @@ def dirs(tmp_path_factory):
 def test_every_column_has_an_entry_and_every_entry_a_column(dirs):
     files = {f.stem: f for d in ("validated", "resolved", "warehouse") for f in dirs[d].glob("*.csv")}
     db, layer_of = {}, {}
-    for layer, path in (("warehouse", dirs["warehouse"] / "northgate.duckdb"), ("alerts", dirs["alerts_db"])):
+    for layer, path in (("warehouse", dirs["warehouse"] / "northgate.duckdb"), ("alerts", dirs["alerts_db"]),
+                        ("retrieval", dirs["retrieval_db"])):
         con = duckdb.connect(str(path), read_only=True)
         for table, column in con.execute("SELECT table_name, column_name FROM information_schema.columns").fetchall():
             db.setdefault(table, set()).add(column)

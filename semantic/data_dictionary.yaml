@@ -1023,3 +1023,26 @@ tables:
       alerts_new: {description: "New or reopened", type: integer, personal_data: false, bqs: [BQ-14]}
       alerts_cleared: {description: "Cleared", type: integer, personal_data: false, bqs: [BQ-14]}
       error: {description: "Failure reason", type: text, personal_data: false, bqs: [BQ-14]}
+
+  kb_section:
+    layer: retrieval
+    grain: one row per "## " section of a current knowledge base document (superseded documents are not indexed)
+    lineage: []
+    columns:
+      section_id: {description: "kb_id#section number", type: code, personal_data: false, bqs: [BQ-11]}
+      kb_id: {description: "Document ID, cited by the assistant", type: code, personal_data: false, bqs: [BQ-11]}
+      title: {description: "Document title", type: text, personal_data: false, bqs: [BQ-11]}
+      doc_type: {description: "article or policy", type: code, personal_data: false, bqs: [BQ-11]}
+      heading: {description: "Section heading", type: text, personal_data: false, bqs: [BQ-11]}
+      text: {description: "Section text from the document body", type: text, personal_data: true, personal_data_note: "same flag as the KB body: none seen in the synthetic articles, but staff could write names", bqs: [BQ-11]}
+      indexed_text: {description: "title. heading. text — what BM25 scores", type: text, personal_data: true, personal_data_note: "contains text; same flag as the KB body", bqs: [BQ-11]}
+
+  kb_superseded:
+    layer: retrieval
+    grain: one row per superseded knowledge base document, kept out of the index
+    lineage: []
+    columns:
+      kb_id: {description: "Superseded document", type: code, personal_data: false, bqs: [BQ-11, BQ-12]}
+      title: {description: "Its title", type: text, personal_data: false, bqs: [BQ-12]}
+      superseded_by: {description: "Replacement document", type: code, personal_data: false, bqs: [BQ-12]}
+      superseded_on: {description: "Date superseded", type: date, personal_data: false, bqs: [BQ-12]}

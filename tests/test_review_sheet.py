@@ -29,7 +29,7 @@ def env(tmp_path_factory):
     build_raw(load_config(), raw, truth)
     s = load_settings()
     s = dict(s, raw_dir=raw, staging_dir=root / "staging", validated_dir=root / "validated",
-             resolved_dir=root / "resolved", warehouse_dir=root / "warehouse", alerts_dir=root / "alerts",
+             resolved_dir=root / "resolved", warehouse_dir=root / "warehouse", alerts_dir=root / "alerts", retrieval_dir=root / "retrieval",
              shop_api=dict(s["shop_api"], base_url="http://testserver"))
     pipeline_run.run_all(s, client=TestClient(create_app(raw / "shop_orders.json"), base_url="http://testserver"))
     review_sheet.run(s)

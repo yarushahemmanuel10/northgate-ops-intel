@@ -2,8 +2,8 @@
 
 Run:  python -m pipeline.run   (the shop API must be running, see README)
 
-ingest -> validate -> resolve -> dedup -> load -> export -> alerts, then a short summary: row counts,
-revenue by line, the Unknown customer total and active alerts. If the shop API is not reachable it stops with
+ingest -> validate -> resolve -> dedup -> load -> export -> alerts -> KB index, then a short summary: row counts,
+revenue by line, the Unknown customer total, active alerts and the KB index size. If the shop API is not reachable it stops with
 the same message as ingestion, before anything downstream is rebuilt.
 """
 from __future__ import annotations
@@ -17,6 +17,7 @@ import httpx
 from pipeline.alerts import run as alerts
 from pipeline.ingest.run import ingest
 from pipeline.ingest.shop_api import ShopApiUnavailable
+from pipeline.retrieval import index as kb_index
 from pipeline.resolve.run import load_config as resolution_config, resolve
 from pipeline.settings import load_settings
 from pipeline.validate.run import load_rules, validate
@@ -33,7 +34,8 @@ def run_all(settings: dict, client: httpx.Client | None = None) -> dict:
     built = build(settings, wcfg)
     exported = export.run(settings, wcfg)
     raised = alerts.run(settings)
-    return {"rows": built["rows"], "exported": exported, "alerts": raised,
+    indexed = kb_index.build(settings)
+    return {"rows": built["rows"], "exported": exported, "alerts": raised, "kb_index": indexed,
             "summary": summary(settings["warehouse_dir"] / wcfg["database"])}
 
 
@@ -72,6 +74,8 @@ def main() -> None:
     a = out["alerts"]
     print(f"Alerts: {a['active']} active ({a['new']} new, {a['cleared']} cleared since the last run), "
           + ", ".join(f"{k} {v}" for k, v in a["by_rule"].items()))
+    k = out["kb_index"]
+    print(f"KB index: {k['sections']} sections from {k['articles']} current articles ({k['superseded']} superseded left out)")
 
 
 if __name__ == "__main__":
