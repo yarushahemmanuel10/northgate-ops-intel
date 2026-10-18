@@ -119,7 +119,7 @@ def score_data(q: dict, out: dict, warehouse_db=None, alerts_db=None) -> dict:
         if "error" in truth:
             raise RuntimeError(f"{q['id']}: expected tool failed: {truth['error']}")
         if q.get("checks"):
-            in_answer = [v for _, v, _ in _numbers(out["answer"])]
+            in_answer = [v for _, v, _ in _numbers(out["answer"], words=True)]   # "Three" counts as 3 (D-041)
             misses = []
             for c in q["checks"]:
                 want = float(_path(truth, c["path"]))

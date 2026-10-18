@@ -134,10 +134,18 @@ def citations(answer: str) -> tuple[set[str], set[str]]:
     return kb, other
 
 
-def _numbers(text: str) -> list[tuple[str, float, float]]:
+NUMBER_WORDS = {w: i for i, w in enumerate(
+    "one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen "
+    "eighteen nineteen twenty".split(), 1)}
+NUMBER_WORD = re.compile(r"(?<![\w-])(" + "|".join(NUMBER_WORDS) + r")(?![\w-])", re.IGNORECASE)   # not "twenty-one"
+
+
+def _numbers(text: str, words: bool = False) -> list[tuple[str, float, float]]:
     """(as written, value, tolerance) for each number in the text, ignoring dates, years, IDs and the
-    markers of a numbered list ("3. Remind the user...")."""
-    out = []
+    markers of a numbered list ("3. Remind the user..."). With words=True, numbers written as words from one
+    to twenty ("Three open tickets") count too (D-041). That is used when looking for an expected figure in
+    an answer; it is off when flagging unsupported figures, where "one" and "two" are usually just words."""
+    out = [(m.group(0), float(NUMBER_WORDS[m.group(1).lower()]), 0.5) for m in NUMBER_WORD.finditer(text)] if words else []
     for m in NUMBER.finditer(DATES.sub(" ", LIST_MARKER.sub(" ", text))):
         whole, frac, unit = m.group(1).replace(",", ""), m.group(2) or "", (m.group(3) or "").lower()
         value, tol = float(whole + frac), 0.5 * 10 ** -(len(frac) - 1 if frac else 0)

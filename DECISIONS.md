@@ -436,3 +436,22 @@ Decided by the project author after D-039. These are general rules, not fixes fo
   - Rough checks only: T04, T05 and T08 must-include misses (T17 and T20 now pass).
 - Commit 3d225d7 (the output-limit change) also picked up this run's results files by accident; its message does not mention them.
 
+## D-041: Number words in the figure check, final tuning score, known faults, and the assistant frozen (step 5.5)
+- **Scores so far** (tuning set, 28 questions):
+
+  | Run | Passed | Where |
+  |---|---|---|
+  | Baseline, D-038 prompt | 21 | `eval/results/baseline_2026-10-18/` |
+  | Baseline re-scored with the D-039 checker fixes | 24 | `eval/results/rescored_2026-10-18/` |
+  | Run 2, after the D-040 general change (live, author's Mac) | 25 | `eval/results/run2_2026-10-18/`, saved unchanged |
+  | Run 2 re-scored with this checker fix (cache, no API calls) | **26** | `eval/results/assistant_tune.*` |
+- **Checker fix**: numbers written as words, one to twenty ("Three open tickets"), count when the harness looks for an expected figure in an answer. That fixed DT02, which wrote "Three" for 3. Hyphenated forms such as "twenty-one" are not read.
+  - **Narrowed after a first attempt**: words are not used when flagging unsupported figures in an answer. A first version that read every number word made the post-reply check flag ordinary words ("these two articles", "one customer's history") in T04 and DT07, scoring 24. That version was replaced before anything was committed.
+  - No prompt or retrieval change, so run 2 was re-scored from the cache, not re-run.
+- **Known faults, recorded and not fixed**:
+  - **T17, checker limitation**: "Six weeks is 42 days, and nightly backups are kept for only 30 days". The answer is correct and shows its working (prompt rule 2), but the checker cannot verify a calculated figure: 42 appears in no tool result, and the checker does not do arithmetic. Any calculated figure can fail this way, or pass by chance when the same number happens to appear elsewhere in the returned text (T10's 12, D-040).
+  - **DT06, a real model fault**: the answer cites `[semantic/metrics.yaml, docs/01_business_processes.md]`. The second document was only mentioned inside the metric definition, not returned as a source, against prompt rule 3. The post-reply code check catches it ("Cites sources not returned for this question"), so a user would see the warning.
+  - **Rough checks only**: must-include misses on T04, T05 and T08. Earlier misses on T17 and T20 were judged paraphrases by the author.
+- **Frozen**: no further prompt, retrieval or tool changes to the assistant. The commit is tagged `assistant-frozen`. Held-out evaluation (`--heldout`) runs against that tag once the author approves it in chat. Changes to the evaluation harness after this point will be recorded, and will not touch `pipeline/assistant/`, `pipeline/retrieval/`, `pipeline/tools/` or `config/assistant.yaml`.
+- Spend to date: £0.0675 of the £5 limit (`python -m pipeline.assistant.ask --spend`).
+

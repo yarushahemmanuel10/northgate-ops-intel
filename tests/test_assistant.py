@@ -273,3 +273,13 @@ def test_kb_tool_sends_full_articles_in_unchanged_rank_order(env):
     assert "## Priorities" in first["text"] and "## Reporting" in first["text"]   # whole article, not one section
     headings = first["text"].split("## ")[1:]
     assert len(headings) == len([s for s in kb._load(str(env["idx"]))[0] if s[1] == "KB-0045"])
+
+
+def test_number_words_one_to_twenty_count_when_looking_for_a_figure():
+    from pipeline.assistant.ask import _numbers
+    cfg = assistant_config()["knowledge_base"]
+    words = sorted(v for _, v, _ in _numbers("Three tickets, twenty users, Twelve hours; twenty-one is not read", words=True))
+    assert words == [3, 12, 20]
+    assert _numbers("Three tickets and two articles") == []                     # off by default
+    data = {"sources": ["v_kpi_bq02_open_tickets"], "totals": {"matching_tickets": 3}}
+    assert check_answer("These two articles conflict; one view [v_kpi_bq02_open_tickets].", "q", [data], cfg)["warnings"] == []

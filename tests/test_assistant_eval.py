@@ -70,3 +70,13 @@ def test_heldout_option_is_refused_without_approval_and_opens_nothing(monkeypatc
             loader("heldout")
     assert str(FILES["heldout"]) not in opened and str(DATA_FILES["heldout"]) not in opened
     assert len(load("tune")) == 20 and len(load_data("tune")) == 8
+
+
+def test_expected_figure_written_as_a_word_is_found(monkeypatch):
+    monkeypatch.setattr(ev.data_tools, "call", lambda *a, **k: {"sources": ["v_kpi_bq02_open_tickets"],
+                                                                "totals": {"matching_tickets": 3}})
+    q = {"id": "D3", "type": "data", "expected_tool": "open_ticket_alerts", "expected_args": {},
+         "checks": [{"path": "totals.matching_tickets", "kind": "count", "tolerance": 0}]}
+    r = ev.score_data(q, out("Three open tickets are about to breach [v_kpi_bq02_open_tickets].",
+                             cited_views=["v_kpi_bq02_open_tickets"], tools=["open_ticket_alerts"]))
+    assert r["figures"][0] == "pass"
