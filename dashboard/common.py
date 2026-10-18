@@ -16,6 +16,7 @@ import duckdb
 import pandas as pd
 import streamlit as st
 
+from pipeline.audit.log import new_session, record
 from pipeline.roles.config import ALERT_RULES as ALERT_RULES_ALL, Role, get_role, load_roles
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -48,12 +49,29 @@ def current_role() -> Role:
     return get_role(st.session_state.get(ROLE_KEY) or os.environ.get("NORTHGATE_ROLE"))
 
 
+def session_id() -> str:
+    """A random ID for this browser session: the audit log records roles and sessions, not people (D-045)."""
+    if "audit_session" not in st.session_state:
+        st.session_state["audit_session"] = new_session()
+        record("session_started", role=current_role().key, session=st.session_state["audit_session"],
+               warehouse_db=db_path())
+    return st.session_state["audit_session"]
+
+
+def _role_changed() -> None:
+    new, old = st.session_state[ROLE_KEY], st.session_state.get("audit_role")
+    record("role_changed", role=new, session=session_id(), target=new, detail={"from": old}, warehouse_db=db_path())
+    st.session_state["audit_role"] = new
+
+
 def role_selector() -> Role:
     roles, _ = load_roles()
     if ROLE_KEY not in st.session_state:
         st.session_state[ROLE_KEY] = current_role().key
+    session_id()
+    st.session_state.setdefault("audit_role", st.session_state[ROLE_KEY])
     with st.sidebar:
-        st.selectbox("Demo role — not authentication", list(roles), key=ROLE_KEY,
+        st.selectbox("Demo role — not authentication", list(roles), key=ROLE_KEY, on_change=_role_changed,
                      format_func=lambda k: roles[k].label,
                      help="Decides which pages, names and assistant tools are shown (config/roles.yaml, D-044). "
                           "Anyone can pick any role: this is a demonstration, not access control.")
@@ -66,7 +84,12 @@ def page_header(title: str, page: str) -> Role:
     st.warning(meta["synthetic_notice"], icon="⚠️")
     st.title(title)
     role = current_role()
-    if not role.can_open(page):
+    allowed = role.can_open(page)
+    if st.session_state.get("audit_last_page") != (page, role.key):      # once per page visit, not per rerun
+        record("page_opened" if allowed else "page_refused", role=role.key, session=session_id(), target=page,
+               outcome="ok" if allowed else "refused", warehouse_db=db_path())
+        st.session_state["audit_last_page"] = (page, role.key)
+    if not allowed:
         st.error(f"The {role.label} role cannot open this page. Pick another demo role in the sidebar.")
         st.stop()
     st.caption(f"Data as of {pd.Timestamp(meta['as_of_date']):%d %B %Y} · data window "

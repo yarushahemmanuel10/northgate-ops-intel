@@ -561,3 +561,35 @@ Decided by the project author after D-039. These are general rules, not fixes fo
   The existing dashboard tests run as the operations director.
 - **Alternatives**: roles inside the frozen assistant (would break the freeze and the held-out result); hiding pages in navigation only (a direct link would still open them); one boolean "can see names" per role (the data steward needs names on one page only).
 
+## D-045: Append-only audit log with a hash chain and an anchored head (step 6.4)
+- **Choice**: `pipeline/audit/log.py` appends one JSON line per action to `data/audit/audit.jsonl` (git-ignored).
+  - **Fields**: seq, time (UTC), session, role, action, target, outcome, detail, prev (the previous entry's hash), and hash (SHA-256 of the entry without its own hash).
+  - **Concurrency**: appends take a file lock, so several dashboard sessions can write at once.
+  - **Why JSONL, not DuckDB**: the dashboard keeps its rule of reading the warehouse read-only, and there's no single-writer database lock to contend with.
+- **What is logged** (one entry per action):
+
+  | Where | Actions |
+  |---|---|
+  | Dashboard | `session_started`, `page_opened`, `page_refused` (once per page visit, not per Streamlit rerun), `role_changed` (with the previous role) |
+  | Assistant (`RoleAssistant`) | `assistant_question` (the question masked, plus route, tools, citations, warning count, API calls, cost), `tool_refused` |
+  | `pipeline.run` | `export_written`, `pipeline_run` (also when ingestion fails) |
+  | `apply_review` | `review_decisions_applied` (counts and the decisions file's SHA-1), `export_written` |
+- **Who**: each dashboard browser session and each assistant gets a random session ID (16 hex characters), logged with the demo role. There is no sign-in, so **the log records roles and sessions, not people** (README). The frozen `Assistant` used directly (evaluation, `python -m pipeline.assistant.ask`) is not audited; the role-aware entry point is.
+- **No personal data**: every string written (target and detail) first passes through the ticket-text masker (D-043) with the warehouse's own name lists, so business names, staff names, emails and phone numbers become placeholders even if a caller passes them. Tested with a business name, a staff name, a contact name, a phone and an email.
+- **Anchor**: `write_head()` copies the head entry's seq, hash and time to a separate file, `data/audit/head.txt`, at the end of every pipeline run (and after a failed one). `python -m pipeline.audit.verify` checks every hash link, checks that the anchored entry is still in the log with the same hash, and prints the head hash. It exits 1 on any problem.
+  - **Detected**: editing, deleting or reordering any entry (the chain breaks at that line), and cutting entries off the end after an anchor (head.txt no longer matches).
+  - **Limit**: someone with write access to both files can rewrite the whole log and head.txt consistently, and that is not detected (a test demonstrates it). Production would send entries, or at least the head hashes, to write-once storage (object storage with retention lock, or an external log service).
+- **Retention**: `config/audit.yaml` sets `retention_days: 365`. `verify` reports how many entries are older than that; nothing is deleted automatically, since deleting from a hash chain needs a documented re-anchoring procedure.
+- **Tests**: `tests/conftest.py` sends every test's audit entries to a temporary folder, never `data/audit`. `tests/test_audit.py` (12) covers:
+  - the chain and anchor;
+  - editing, deleting and reordering detected;
+  - truncation caught by the anchor;
+  - the full-rewrite limit;
+  - retention reported, not enforced;
+  - the verify output;
+  - no personal data;
+  - one entry each for session start, page open, rerun (none), role change, refused page, assistant question and refused tool.
+
+  The pipeline-run and review tests check one `export_written` + `pipeline_run` per run and one `review_decisions_applied` per apply.
+- **Alternatives**: a DuckDB table (single writer, and the dashboard would need write access); Python `logging` to a text file (no tamper evidence); signing entries with a key (key management with no sign-in to tie it to); no dashboard page for the log for now, because the dashboard reads warehouse views only. The CLI is the viewer.
+

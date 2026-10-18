@@ -121,3 +121,15 @@ def test_main_prints_the_ingestion_message_and_exits_2(runs, tmp_path, monkeypat
         pipeline_run.main()
     assert exc.value.code == 2
     assert "Ingestion stopped: Cannot reach the shop API" in capsys.readouterr().err
+
+
+def test_each_run_writes_one_export_and_one_run_entry_and_anchors_the_head(runs):
+    """Audit log (D-045): per pipeline run, exactly one export_written and one pipeline_run entry."""
+    import json
+    from pipeline.audit.log import HEAD_NAME, LOG_NAME, audit_dir, verify
+    entries = [json.loads(x) for x in (audit_dir() / LOG_NAME).read_text().splitlines()]
+    for _, out in runs["runs"]:
+        mine = [e["action"] for e in entries if e["session"] == out["audit_session"]]
+        assert mine == ["export_written", "pipeline_run"]
+        assert out["audit_head"] and len(out["audit_head"]) == 64
+    assert (audit_dir() / HEAD_NAME).exists() and verify()["ok"]

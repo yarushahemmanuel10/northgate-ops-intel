@@ -1,0 +1,2 @@
+# Audit log (step 6.4, D-045).
+retention_days: 365      # verify reports entries older than this; nothing is deleted automatically

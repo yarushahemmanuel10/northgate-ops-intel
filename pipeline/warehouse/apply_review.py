@@ -11,11 +11,13 @@ from __future__ import annotations
 
 import math
 import sys
+import hashlib
 import tempfile
 from pathlib import Path
 
 import duckdb
 
+from pipeline.audit.log import new_session, record
 from pipeline.settings import ROOT, load_settings
 from pipeline.warehouse import export
 from pipeline.warehouse.load import DECISION_COLUMNS, build, load_config, read_decisions
@@ -54,8 +56,15 @@ def apply(settings: dict, decisions_path: Path | None = None) -> dict:
         build(settings, cfg, warehouse=d, decisions_path=d / "none.csv")
         before = _facts(d / cfg["database"])
     built = build(settings, cfg, decisions_path=path)
-    export.run(settings, cfg)
+    exported = export.run(settings, cfg)
     after = _facts(wd / cfg["database"])
+    session, db = new_session(), wd / cfg["database"]            # audit log (D-045): the command line has no role
+    record("review_decisions_applied", role="command line", session=session, target=path.name, warehouse_db=db,
+           detail={"decision_rows": len(decisions), "records_decided": built["decisions_applied"],
+                   "file_sha1": hashlib.sha1(path.read_bytes()).hexdigest(),
+                   "unknown_rows_before": before["unknown_rows"], "unknown_rows_after": after["unknown_rows"]})
+    record("export_written", role="command line", session=session, target="exports", warehouse_db=db,
+           detail={"files": len(exported), "by": "apply_review"})
     return {"decision_rows": len(decisions), "records_decided": built["decisions_applied"],
             "before": before, "after": after}
 

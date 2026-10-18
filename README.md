@@ -75,6 +75,7 @@ uv run python -m pipeline.assistant.ask --spend    # total logged API spend agai
 uv run python -m eval.assistant_eval               # score the assistant on the 28 tuning questions (D-038), about 3p
 uv run python -m eval.assistant_eval --cache-only  # re-score from the response cache, no API calls
 uv run python -m eval.masking_eval                 # ticket-text masking on the dev half: recall and false masks (D-043)
+uv run python -m pipeline.audit.verify             # check the audit log's hash chain and anchor; prints the head hash (D-045)
 ```
 
 Or run the whole chain in one go, with the shop API running in another terminal:
@@ -127,6 +128,13 @@ The assistant (Claude Haiku 5.5 with knowledge-base search and 13 read-only data
   - **Unreturned citations**: in DT06 the model cited a document it only saw mentioned inside a result, against its own citation rule. The post-reply check catches it and shows a warning.
   - **Small sample**: 28 + 14 questions are few, and the keyword checks are rough.
 
+## Audit log (Phase 6)
+
+Dashboard page views and refusals, demo-role changes, assistant questions (stored masked) and refused tools, exports, review decisions and pipeline runs are appended to `data/audit/audit.jsonl`. Each entry carries the hash of the one before it, and each pipeline run copies the latest hash to `data/audit/head.txt`. `python -m pipeline.audit.verify` reports a break anywhere in the chain, entries cut off the end, and entries older than the 365-day retention period (reported only; nothing is deleted).
+
+- **Roles and sessions, not people.** There is no sign-in, so the log records the demo role picked in the sidebar and a random session ID, never who was at the keyboard.
+- **Detects partial edits only.** Someone with write access to both files could rewrite the whole log consistently; production would use write-once storage (D-045).
+
 ## What is committed and what is generated
 
 <!-- files-table:start -->
@@ -147,6 +155,7 @@ The assistant (Claude Haiku 5.5 with knowledge-base search and 13 read-only data
 | `data/resolved/` | No | Crosswalk of every source record to a CRM account, and the review queue | `python -m pipeline.resolve.run` |
 | `data/warehouse/` | No | Duplicate marks, the DuckDB star schema (`northgate.duckdb`) and Power BI CSV exports in `exports/` | `python -m pipeline.run` (whole chain) |
 | `data/alerts/` | No | Alert history (alerts, run log), kept across warehouse rebuilds | `python -m pipeline.alerts.run` (step of `pipeline.run`) |
+| `data/audit/` | No | Audit log (`audit.jsonl`, hash-chained) and `head.txt` anchor | dashboard, role-aware assistant, `pipeline.run`, `apply_review` |
 | `data/assistant/` | No | API call log (`calls.jsonl`: time, model, tokens, cost) and response cache | `python -m pipeline.assistant.ask` |
 | `data/retrieval/` | No | KB search index (sections of current articles; superseded list) | `python -m pipeline.retrieval.index` (last step of `pipeline.run`) |
 | `eval/questions/` | Yes | The reviewer's knowledge-base evaluation questions (20 tuning, 10 held out) | Written by the reviewer |

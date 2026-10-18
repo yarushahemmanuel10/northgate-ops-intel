@@ -10,6 +10,7 @@ warehouse_dir: data/warehouse
 alerts_dir: data/alerts
 retrieval_dir: data/retrieval
 assistant_dir: data/assistant
+audit_dir: data/audit
 shop_api:
   base_url: "http://127.0.0.1:8765"
   page_size: 500

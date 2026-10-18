@@ -2,7 +2,7 @@
 
 Run:  python -m pipeline.run   (the shop API must be running, see README)
 
-ingest -> validate -> resolve -> dedup -> load -> export -> alerts -> KB index, then a short summary: row counts,
+ingest -> validate -> resolve -> dedup -> load -> export -> alerts -> KB index -> audit entries and head.txt, then a short summary: row counts,
 revenue by line, the Unknown customer total, active alerts and the KB index size. If the shop API is not reachable it stops with
 the same message as ingestion, before anything downstream is rebuilt.
 """
@@ -15,6 +15,7 @@ import duckdb
 import httpx
 
 from pipeline.alerts import run as alerts
+from pipeline.audit.log import new_session, record, write_head
 from pipeline.ingest.run import ingest
 from pipeline.ingest.shop_api import ShopApiUnavailable
 from pipeline.retrieval import index as kb_index
@@ -25,8 +26,9 @@ from pipeline.warehouse import dedup, export
 from pipeline.warehouse.load import build, load_config as warehouse_config
 
 
-def run_all(settings: dict, client: httpx.Client | None = None) -> dict:
+def run_all(settings: dict, client: httpx.Client | None = None, session: str | None = None) -> dict:
     wcfg = warehouse_config()
+    session = session or new_session()
     ingest(settings, client=client)
     validate(settings, load_rules())
     resolve(settings, resolution_config())
@@ -35,8 +37,16 @@ def run_all(settings: dict, client: httpx.Client | None = None) -> dict:
     exported = export.run(settings, wcfg)
     raised = alerts.run(settings)
     indexed = kb_index.build(settings)
-    return {"rows": built["rows"], "exported": exported, "alerts": raised, "kb_index": indexed,
-            "summary": summary(settings["warehouse_dir"] / wcfg["database"])}
+    db = settings["warehouse_dir"] / wcfg["database"]
+    out = {"rows": built["rows"], "exported": exported, "alerts": raised, "kb_index": indexed, "summary": summary(db)}
+    # audit log (D-045): one entry for the exports, one for the run, then anchor the chain's head in head.txt
+    record("export_written", role="pipeline", session=session, target="exports", warehouse_db=db,
+           detail={"files": len(exported), "by": "pipeline.run"})
+    record("pipeline_run", role="pipeline", session=session, warehouse_db=db,
+           detail={"warehouse_rows": sum(built["rows"].values()), "alerts_active": raised["active"],
+                   "kb_sections": indexed["sections"]})
+    out["audit_head"], out["audit_session"] = write_head(), session
+    return out
 
 
 def summary(db) -> dict:
@@ -61,6 +71,9 @@ def main() -> None:
     try:
         out = run_all(settings)
     except ShopApiUnavailable as exc:
+        record("pipeline_run", role="pipeline", session=new_session(), outcome="failed",
+               detail={"stage": "ingest", "reason": "shop API not reachable"})
+        write_head()
         print(f"Ingestion stopped: {exc}", file=sys.stderr)
         sys.exit(2)
     print("Pipeline complete.")
@@ -76,6 +89,7 @@ def main() -> None:
           + ", ".join(f"{k} {v}" for k, v in a["by_rule"].items()))
     k = out["kb_index"]
     print(f"KB index: {k['sections']} sections from {k['articles']} current articles ({k['superseded']} superseded left out)")
+    print(f"Audit log head written to head.txt: {out['audit_head']}")
 
 
 if __name__ == "__main__":

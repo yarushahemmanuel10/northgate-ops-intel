@@ -152,7 +152,10 @@ def test_filled_sheet_rows_can_be_copied_as_they_are(env):
 def test_apply_reports_the_effect(env):
     shop = next(r for r in env["sheet"] if r["source_system"] == "shop")
     path = _write(env["tmp"]("ap") / "d.csv", [_decision("shop", shop["source_key"], shop["candidate_1"])])
+    from pipeline.audit.log import verify
+    before = verify()["by_action"].get("review_decisions_applied", 0)
     out = apply(env["s"], path)
+    assert verify()["by_action"].get("review_decisions_applied", 0) == before + 1      # one audit entry (D-045)
     b, a = out["before"], out["after"]
     moved = sum(n for src, cust, n in a["moved"] if src == "shop" and cust == shop["candidate_1"])
     assert moved > 0 and b["unknown_rows"] - a["unknown_rows"] == moved
