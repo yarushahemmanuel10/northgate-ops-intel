@@ -58,9 +58,10 @@ def test_data_scoring_reads_the_expected_value_at_run_time(monkeypatch):
 
 
 def test_heldout_option_is_refused_without_approval_and_opens_nothing(monkeypatch, tmp_path):
-    assert not ev.APPROVAL.exists()
+    import os
+    env = dict(os.environ, NORTHGATE_HELDOUT_APPROVAL=str(tmp_path / "no_approval.yaml"))
     r = subprocess.run([sys.executable, "-m", "eval.assistant_eval", "--heldout", "--out", str(tmp_path)],
-                       cwd=ROOT, capture_output=True, text=True)
+                       cwd=ROOT, capture_output=True, text=True, env=env)
     assert r.returncode == 3 and "Refused" in r.stderr and not list(tmp_path.iterdir())
     opened = []
     real = builtins.open
@@ -80,3 +81,20 @@ def test_expected_figure_written_as_a_word_is_found(monkeypatch):
     r = ev.score_data(q, out("Three open tickets are about to breach [v_kpi_bq02_open_tickets].",
                              cited_views=["v_kpi_bq02_open_tickets"], tools=["open_ticket_alerts"]))
     assert r["figures"][0] == "pass"
+
+
+def test_heldout_guard_checks_tag_frozen_code_and_runs_once(monkeypatch, tmp_path):
+    import yaml
+    appr = yaml.safe_load((ROOT / "eval" / "heldout_approval.yaml").read_text())
+    f = tmp_path / "approval.yaml"
+    monkeypatch.setattr(ev, "APPROVAL", f)
+    good_out = ROOT / appr["results_dir"]
+    f.write_text(yaml.safe_dump(dict(appr, commit="0" * 40)))
+    assert "does not point at the approved commit" in ev.heldout_refusal(False, good_out)
+    f.write_text(yaml.safe_dump(appr))
+    assert ev.heldout_refusal(True, tmp_path) is None                         # cache-only re-scoring: anywhere
+    if not (good_out / "assistant_heldout.csv").exists():
+        assert "approved folder" in ev.heldout_refusal(False, tmp_path)
+        assert ev.heldout_refusal(False, good_out) is None
+    else:
+        assert "already been made" in ev.heldout_refusal(False, good_out)

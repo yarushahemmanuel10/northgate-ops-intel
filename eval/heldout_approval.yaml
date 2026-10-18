@@ -1,0 +1,10 @@
+# Approval for the held-out evaluation (D-042). Created by the builder on the project author's instruction.
+approved_by: Yarushah Emmanuel Sardar (project author)
+approved_on: "2026-10-18"
+approved_in: chat, 18:29 Europe/London ("I approve the held-out evaluation, once only, against the assistant-frozen tag")
+tag: assistant-frozen
+commit: 192582223529a9c72f6e179ee7d2883c6f74c0ed
+runs_allowed: 1
+scope: python -m eval.assistant_eval --heldout (kb_eval_heldout.yaml, 10 questions; data_eval_heldout.yaml, 4 questions)
+results_dir: eval/results/heldout_2026-10-18
+changes_after_results: none; failures are recorded as known limitations only

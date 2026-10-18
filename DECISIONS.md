@@ -455,3 +455,15 @@ Decided by the project author after D-039. These are general rules, not fixes fo
 - **Frozen**: no further prompt, retrieval or tool changes to the assistant. The commit is tagged `assistant-frozen`. Held-out evaluation (`--heldout`) runs against that tag once the author approves it in chat. Changes to the evaluation harness after this point will be recorded, and will not touch `pipeline/assistant/`, `pipeline/retrieval/`, `pipeline/tools/` or `config/assistant.yaml`.
 - Spend to date: £0.0675 of the £5 limit (`python -m pipeline.assistant.ask --spend`).
 
+## D-042: Held-out evaluation, approved once against `assistant-frozen`
+- **Approval**: the project author approved the held-out evaluation in chat on 2026-10-18 at 18:29, once only, against the tag `assistant-frozen` (commit 1925822). It is recorded in `eval/heldout_approval.yaml`.
+- **Before the run**: HEAD was the tagged commit with a clean working tree. After this commit, `pipeline/` and `config/` are still identical to the tag (`git diff --quiet assistant-frozen -- pipeline config`).
+- **Guard (evaluation code only)**: `--heldout` now refuses, before any held-out file is opened, unless all of these hold:
+  - the approval file exists;
+  - the tag points at the approved commit;
+  - `pipeline/` and `config/` are unchanged from that commit;
+  - a live run writes to the approved folder (`eval/results/heldout_2026-10-18/`);
+  - that folder holds no finished results yet.
+  `--cache-only` re-scoring is allowed anywhere. An interrupted run writes no results file, so it can be restarted, and the questions already answered are served from the cache. The refusal test now uses an approval path that doesn't exist (`NORTHGATE_HELDOUT_APPROVAL`) rather than requiring the real file to be absent.
+- **Rule for the results**: no change of any kind in response; real faults are recorded as known limitations for the write-up.
+

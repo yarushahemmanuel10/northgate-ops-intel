@@ -29,6 +29,8 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import os
+import subprocess
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -42,7 +44,8 @@ from pipeline.retrieval.text import tokens
 from pipeline.tools import data as data_tools
 
 RESULTS = ROOT / "eval" / "results"
-APPROVAL = ROOT / "eval" / "heldout_approval.yaml"
+APPROVAL = Path(os.environ.get("NORTHGATE_HELDOUT_APPROVAL", ROOT / "eval" / "heldout_approval.yaml"))
+FROZEN_PATHS = ["pipeline", "config"]              # assistant, retrieval, tools and their settings (D-041)
 RUN_LIMIT_GBP = 0.50
 ROUGH = {"must_include", "no_recommendation"}
 # Fixed before the first tuning run (D-038). Lower-case substrings; rough by design.
@@ -225,16 +228,40 @@ def summarise(rows: list[dict], split: str, log_entries: list[dict] | None = Non
     return "\n".join(lines) + "\n"
 
 
+def heldout_refusal(cache_only: bool, out_dir: Path) -> str | None:
+    """Why a held-out run must not go ahead, or None (D-042). Checked before any held-out file is opened:
+    the author's approval is recorded; the frozen code is exactly the approved tag's; and a live run happens
+    once (a finished results file in the approved folder blocks another; --cache-only re-scoring is allowed)."""
+    if not APPROVAL.exists():
+        return f"the held-out evaluation needs the project author's approval in chat, recorded in {APPROVAL.name}."
+    appr = yaml.safe_load(APPROVAL.read_text(encoding="utf-8"))
+
+    def git(*args):
+        return subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True)
+    tag = git("rev-parse", f"{appr['tag']}^{{commit}}")
+    if tag.returncode or tag.stdout.strip() != appr["commit"]:
+        return f"tag {appr['tag']} is missing or does not point at the approved commit {appr['commit'][:7]}."
+    if git("diff", "--quiet", appr["commit"], "--", *FROZEN_PATHS).returncode:
+        return f"the assistant code differs from the approved commit {appr['commit'][:7]} ({', '.join(FROZEN_PATHS)})."
+    done = ROOT / appr["results_dir"] / "assistant_heldout.csv"
+    if not cache_only and done.exists():
+        return f"the approved run has already been made ({appr['results_dir']}); only --cache-only re-scoring is allowed."
+    if not cache_only and out_dir.resolve() != (ROOT / appr["results_dir"]).resolve():
+        return f"a live held-out run must write to the approved folder: --out {appr['results_dir']}"
+    return None
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--heldout", action="store_true")
     ap.add_argument("--cache-only", action="store_true")
     ap.add_argument("--out", type=Path, default=RESULTS)
     a = ap.parse_args()
-    if a.heldout and not APPROVAL.exists():
-        print("Refused: the held-out evaluation needs the project author's approval in chat, recorded in "
-              f"{APPROVAL.relative_to(ROOT)}. No held-out file was opened.", file=sys.stderr)
-        sys.exit(3)
+    if a.heldout:
+        reason = heldout_refusal(a.cache_only, a.out)
+        if reason:
+            print(f"Refused: {reason} No held-out file was opened.", file=sys.stderr)
+            sys.exit(3)
     assistant = Assistant(client=_CacheOnly() if a.cache_only else None)
     out = run("heldout" if a.heldout else "tune", assistant, a.out, final=a.heldout)
     print(out["summary"])
