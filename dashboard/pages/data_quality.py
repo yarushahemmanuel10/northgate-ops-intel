@@ -25,7 +25,7 @@ st.dataframe(query("SELECT source_table AS \"Source table\", validated_rows AS \
                    "FROM v_kpi_bq14_sources ORDER BY source_table"), hide_index=True, width="stretch")
 
 st.subheader("Customer matching")
-st.dataframe(query("SELECT source AS \"Source\", match_status AS \"Match\", records AS \"Records\" "
+st.dataframe(query("SELECT source AS \"Source\", match_label AS \"Match\", records AS \"Records\" "
                    "FROM v_kpi_bq14_matching ORDER BY source, match_status"), hide_index=True, width="stretch")
 
 st.subheader("Review queue")

@@ -779,6 +779,7 @@ tables:
     columns:
       source: {description: "helpdesk, shop, telecoms bills or telecoms contracts", type: code, personal_data: false, bqs: [BQ-14]}
       match_status: {description: "auto, human_review, review or unmatched", type: code, personal_data: false, bqs: [BQ-14]}
+      match_label: {description: "The status in plain words: Matched automatically, Decided in review, Waiting for review, Not matched", type: text, personal_data: false, bqs: [BQ-14]}
       records: {description: "Records", type: integer, personal_data: false, bqs: [BQ-14]}
 
   v_kpi_bq14_findings:

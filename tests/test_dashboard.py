@@ -119,3 +119,18 @@ def test_no_ticket_text_or_personal_data_on_the_dashboard():
     for path, text in _code().items():
         for b in banned:
             assert b not in text.lower(), f"{path.name} mentions {b}"
+
+
+def test_dashboard_fixes_from_review(pages):
+    # 1. onboarding shows a date, not a timestamp
+    assert 'DateColumn(format="D MMM YYYY")' in (DASH / "pages" / "customers.py").read_text(encoding="utf-8")
+    # 2. monthly SLA points need at least 3 measured tickets; the counts are shown alongside
+    service = (DASH / "pages" / "service.py").read_text(encoding="utf-8")
+    assert "resolution_measured >= 3" in service and "Tickets behind each month" in service
+    # 3. the at-risk table keeps to the six key columns, so it fits without scrolling sideways
+    risk = pages["customers"].dataframe[0].value
+    assert list(risk.columns) == ["Rank", "Customer", "Name", "Signals", "Tickets Apr-Jun", "Tickets Jul-Sep"]
+    # 4. matching statuses in plain words
+    match = next(d.value for d in pages["data_quality"].dataframe if "Match" in d.value.columns)
+    assert set(match["Match"]) <= {"Matched automatically", "Decided in review", "Waiting for review", "Not matched"}
+    assert "Waiting for review" in set(match["Match"]) and "human_review" not in set(match["Match"])

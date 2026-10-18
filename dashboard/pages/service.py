@@ -46,6 +46,14 @@ st.dataframe(query("SELECT priority AS \"Priority\", closed_tickets AS \"Closed\
 st.caption("Excluded tickets are counted separately with a reason (no valid priority, no first response, "
            "closed before opened), never dropped. Elapsed hours, not business hours (D-001).")
 st.subheader("Resolution SLA compliance by month")
+st.caption("A point is shown only when at least 3 tickets of that priority were resolved in the month, so one "
+           "breached P1 does not look like a 0% month. The table below gives the counts behind every point.")
 st.line_chart(query("SELECT year_month AS \"Month\", priority AS \"Priority\", resolution_compliance AS \"Resolved within target\" "
-                    "FROM v_kpi_bq01_sla_monthly WHERE priority <> 'none' ORDER BY year_month"),
+                    "FROM v_kpi_bq01_sla_monthly WHERE priority <> 'none' AND resolution_measured >= 3 ORDER BY year_month"),
               x="Month", y="Resolved within target", color="Priority", y_label="Share resolved within target")
+with st.expander("Tickets behind each month"):
+    st.dataframe(query("SELECT year_month AS \"Month\", priority AS \"Priority\", resolution_measured AS \"Resolved, measured\", "
+                       "resolution_breached AS \"Breached\", resolution_compliance AS \"Within target\" "
+                       "FROM v_kpi_bq01_sla_monthly WHERE priority <> 'none' ORDER BY year_month, priority"),
+                 hide_index=True, width="stretch",
+                 column_config={"Within target": st.column_config.NumberColumn(format="percent")})

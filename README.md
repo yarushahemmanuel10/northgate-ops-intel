@@ -64,6 +64,7 @@ uv run python -m eval.at_risk_eval             # at-risk customers found, before
 uv run python -m pipeline.warehouse.review_sheet   # review_sheet.csv for the queued records (D-029)
 uv run python -m pipeline.warehouse.apply_review   # apply config/review_decisions.csv and show the effect
 uv run python -m eval.kpi_checks                   # BQ-05 and BQ-12 figures explained against the answer key (D-032)
+uv run python -m eval.sla_eval                     # SLA breach rates against the generator, every difference explained (D-033)
 ```
 
 Or run the whole chain in one go, with the shop API running in another terminal:

@@ -32,7 +32,7 @@ KPI_VIEWS = ["v_kpi_bq01_sla_monthly", "v_kpi_bq02_open_tickets", "v_kpi_bq03_re
 def env(tmp_path_factory):
     m = tmp_path_factory.mktemp
     raw, truth, staging, validated, resolved, wh = m("raw"), m("truth"), m("staging"), m("validated"), m("resolved"), m("wh")
-    build_raw(load_config(), raw, truth)
+    clean, *_ = build_raw(load_config(), raw, truth)
     s = load_settings()
     s = dict(s, staging_dir=staging, shop_api=dict(s["shop_api"], base_url="http://testserver"))
     ingest(s, client=TestClient(create_app(raw / "shop_orders.json"), base_url="http://testserver"),
@@ -43,7 +43,9 @@ def env(tmp_path_factory):
     empty = m("d") / "d.csv"
     empty.write_text(",".join(DECISION_COLUMNS) + "\n", encoding="utf-8")
     build(s, load_warehouse(), validated, resolved, wh, empty)
-    return {"db": wh / "northgate.duckdb", "truth": truth}
+    import pandas as pd
+    clean_tickets = pd.DataFrame(clean["helpdesk"].rows).fillna("").astype(str)
+    return {"db": wh / "northgate.duckdb", "truth": truth, "clean_tickets": clean_tickets}
 
 
 
@@ -209,3 +211,19 @@ def test_renewals_and_superseded_links_are_explained(env):
     s = superseded_links_check(env["db"], env["truth"])
     assert s["warehouse"] == s["planted_minus_removed"] and s["same_tickets"]
     assert (s["planted"], s["removed_by_qi08"], s["warehouse"]) == (15, 4, 11)
+
+
+def test_sla_rates_differ_from_the_generator_only_by_exclusions(env):
+    from eval.sla_eval import compare
+    r = compare(env["db"], env["clean_tickets"])
+    for p, x in r["priorities"].items():
+        # the generator's own rule on exactly the tickets the warehouse measured gives the warehouse's rate
+        assert abs(x["gen_res_on_wh_tickets"] - x["wh_res"]) < 1e-12, p
+        assert abs(x["gen_resp_on_wh_tickets"] - x["wh_resp"]) < 1e-12, p
+        assert x["outcome_differs"] == 0, p
+        left_out_res = sum(n for (q, _), n in r["reasons_resolution"].items() if q == p)
+        left_out_resp = sum(n for (q, _), n in r["reasons_response"].items() if q == p)
+        assert x["gen_closed"] - x["wh_res_n"] == left_out_res, p        # every missing ticket has a reason
+        assert x["gen_closed"] - x["wh_resp_n"] == left_out_resp, p
+    reasons = {reason for (_, reason) in r["reasons_resolution"]} | {reason for (_, reason) in r["reasons_response"]}
+    assert reasons <= {"TIME-001", "no valid priority", "closed with no first response"}

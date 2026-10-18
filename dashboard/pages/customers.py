@@ -23,12 +23,15 @@ st.info("This list is a **prioritisation aid, not a prediction**. A customer is 
         "review queue are not counted for any customer.")
 st.dataframe(query(
     "SELECT retention_rank AS \"Rank\", customer_id AS \"Customer\", company_name AS \"Name\", "
-    "signals_fired AS \"Signals\", at_risk_score AS \"Signals fired\", tickets_prev AS \"Tickets Apr-Jun\", "
-    "tickets_last AS \"Tickets Jul-Sep\", bl2_ratio AS \"BL2 spend, Jul-Sep vs Apr-Jun\", "
-    "shop_ratio AS \"Shop spend, Jul-Sep vs Apr-Jun\", annual_contract_value AS \"Annual contract value (£)\" "
+    "signals_fired AS \"Signals\", tickets_prev AS \"Tickets Apr-Jun\", tickets_last AS \"Tickets Jul-Sep\" "
+    "FROM v_at_risk WHERE at_risk ORDER BY retention_rank"), hide_index=True, width="stretch")
+st.markdown("**Spend behind each flag** (Jul-Sep as a share of Apr-Jun; None when the customer had no spend of that kind in Apr-Jun)")
+st.dataframe(query(
+    "SELECT retention_rank AS \"Rank\", customer_id AS \"Customer\", at_risk_score AS \"Signals fired\", "
+    "bl2_ratio AS \"BL2 spend\", shop_ratio AS \"Shop spend\", annual_contract_value AS \"Annual contract value (£)\" "
     "FROM v_at_risk WHERE at_risk ORDER BY retention_rank"), hide_index=True, width="stretch",
-    column_config={"BL2 spend, Jul-Sep vs Apr-Jun": st.column_config.NumberColumn(format="percent"),
-                   "Shop spend, Jul-Sep vs Apr-Jun": st.column_config.NumberColumn(format="percent"),
+    column_config={"BL2 spend": st.column_config.NumberColumn(format="percent"),
+                   "Shop spend": st.column_config.NumberColumn(format="percent"),
                    "Annual contract value (£)": st.column_config.NumberColumn(format="£%,.0f")})
 
 st.subheader("Unusual ticket volume, September 2026")
@@ -42,4 +45,5 @@ st.caption("Off track: 3 or more tickets, or any P1/P2, in the first 30 days (D-
 st.dataframe(query("SELECT customer_id AS \"Customer\", company_name AS \"Name\", first_contract_start AS \"First contract\", "
                    "tickets_first_30_days AS \"Tickets, first 30 days\", p1_p2_first_30_days AS \"P1/P2, first 30 days\", "
                    "off_track AS \"Off track\" FROM v_kpi_bq16_onboarding ORDER BY off_track DESC, first_contract_start"),
-             hide_index=True, width="stretch")
+             hide_index=True, width="stretch",
+             column_config={"First contract": st.column_config.DateColumn(format="D MMM YYYY")})

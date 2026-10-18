@@ -199,10 +199,18 @@ def create_kpi_views(con, th: dict, as_of: str) -> None:
           LEFT JOIN (SELECT source_system, COUNT(*) AS rejected_rows FROM dq_rejected_row GROUP BY 1) r USING (source_system)""")
     con.execute("""
         CREATE VIEW v_kpi_bq14_matching AS
-        SELECT 'helpdesk' AS source, match_status, COUNT(*) AS records FROM fact_ticket GROUP BY ALL
-        UNION ALL SELECT 'shop', match_status, COUNT(*) FROM fact_order GROUP BY ALL
-        UNION ALL SELECT 'telecoms bills', match_status, COUNT(*) FROM fact_bill GROUP BY ALL
-        UNION ALL SELECT 'telecoms contracts', match_status, COUNT(*) FROM fact_telecoms_contract GROUP BY ALL""")
+        WITH m AS (
+            SELECT 'helpdesk' AS source, match_status, COUNT(*) AS records FROM fact_ticket GROUP BY ALL
+            UNION ALL SELECT 'shop', match_status, COUNT(*) FROM fact_order GROUP BY ALL
+            UNION ALL SELECT 'telecoms bills', match_status, COUNT(*) FROM fact_bill GROUP BY ALL
+            UNION ALL SELECT 'telecoms contracts', match_status, COUNT(*) FROM fact_telecoms_contract GROUP BY ALL)
+        SELECT source, match_status,
+               CASE match_status WHEN 'auto' THEN 'Matched automatically'
+                                 WHEN 'human_review' THEN 'Decided in review'
+                                 WHEN 'review' THEN 'Waiting for review'
+                                 WHEN 'unmatched' THEN 'Not matched' END AS match_label,
+               records
+          FROM m""")
     con.execute("""
         CREATE VIEW v_kpi_bq14_findings AS
         SELECT rule_id, table_name, field, action, COUNT(*) AS findings, MIN(detail) AS example_detail
