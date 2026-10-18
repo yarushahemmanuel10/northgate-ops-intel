@@ -212,7 +212,7 @@ def test_answer_checks():
     data = {"sources": ["v_kpi_bq05_renewals"], "totals": {"lines": 36, "annual_value": 459400.0}}
     ok = check_answer("36 lines renew, worth £459,400 [v_kpi_bq05_renewals].", "next 90 days?", [data], cfg)
     assert ok["warnings"] == []
-    bad = check_answer("37 lines renew [v_kpi_bq05_renewals] [v_revenue]; see KB-0026.", "q", [data], cfg)
+    bad = check_answer("37 lines renew [v_kpi_bq05_renewals] [v_revenue]; see [KB-0026].", "q", [data], cfg)
     assert any("KB-0026" in w for w in bad["warnings"]) and bad["unverified_figures"] == ["37"]
     assert any("v_revenue" in w for w in bad["warnings"])
     one_side = check_answer("Agents must do it [KB-0008].", "q", [kb], cfg)
@@ -242,3 +242,20 @@ def test_api_failure_ends_the_question_with_a_message(env, tmp_path):
     a = Assistant(client=Refusing([]), warehouse_db=env["w"], alerts_db=env["a"], index_path=env["idx"], out_dir=tmp_path)
     out = a.ask("What is the as-of date?")
     assert out["stopped"] and "HTTP 401 from a proxy" in out["answer"] and not (tmp_path / "calls.jsonl").exists()
+
+
+def test_only_bracketed_citations_count_and_brackets_split():
+    from pipeline.assistant.ask import citations
+    cfg = assistant_config()["knowledge_base"]
+    kb = {"sources": ["KB-0008", "KB-0030", "KB-0015"], "results": []}
+    assert citations("KB-0026 was replaced by KB-0015 [KB-0015].") == ({"KB-0015"}, set())
+    assert check_answer("The older KB-0026 was replaced [KB-0015].", "q", [kb], cfg)["warnings"] == []
+    assert citations("x [v_at_risk, v_kpi_bq06_summary] y [semantic/metrics.yaml; KB-0001 step 2][KB-0002]") == \
+        ({"KB-0001", "KB-0002"}, {"v_at_risk", "v_kpi_bq06_summary", "semantic/metrics.yaml"})
+    assert check_answer("The search also returned KB-0008 and", "q", [kb], cfg)["warnings"] == []   # named, not cited
+    assert any("conflicting" in w for w in check_answer("Agents do it [KB-0030].", "q", [kb], cfg)["warnings"])
+
+
+def test_numbered_list_markers_are_not_figures():
+    from pipeline.assistant.ask import _numbers
+    assert [w for w, _, _ in _numbers("Steps:\n1. Reset it\n2) Wait 12 hours\n  3. Done, 4 users")] == ["12", "4"]

@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -156,7 +157,9 @@ class _CacheOnly:
 def run(split: str, assistant: Assistant, out_dir: Path, final: bool = False) -> dict:
     questions = [("kb", q) for q in load(split, final=final)] + [("data", q) for q in load_data(split, final=final)]
     rows, spent = [], 0.0
-    for kind, q in questions:
+    log = assistant.caller.log
+    log_start = len(log.read_text(encoding="utf-8").splitlines()) if log.exists() else 0
+    for n, (kind, q) in enumerate(questions, 1):
         if spent >= RUN_LIMIT_GBP:
             raise SystemExit(f"Run stopped: £{spent:.4f} spent, at the £{RUN_LIMIT_GBP:.2f} limit for one run.")
         out = assistant.ask(q["question"])
@@ -172,18 +175,22 @@ def run(split: str, assistant: Assistant, out_dir: Path, final: bool = False) ->
         row.update({k: out[k] for k in ("api_calls", "cached_calls", "tokens_in", "tokens_out", "cost_gbp")})
         row["answer"] = out["answer"]
         rows.append(row)
+        print(f"[{n:2d}/{len(questions)}] {q['id']:5s} {q['type']:12s} {'pass' if row['passed'] == 'yes' else 'FAIL'}  "
+              f"API calls {out['api_calls']}, cached {out['cached_calls']}, £{spent:.4f} so far", flush=True)
     out_dir.mkdir(parents=True, exist_ok=True)
     csv_path = out_dir / f"assistant_{split}.csv"
     with open(csv_path, "w", encoding="utf-8", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=list(rows[0]))
         w.writeheader()
         w.writerows(rows)
-    summary = summarise(rows, split)
+    new_log = log.read_text(encoding="utf-8").splitlines()[log_start:] if log.exists() else []
+    entries = [json.loads(x) for x in new_log if x.strip()]
+    summary = summarise(rows, split, entries)
     (out_dir / f"assistant_{split}_summary.md").write_text(summary, encoding="utf-8")
     return {"rows": rows, "summary": summary, "csv": csv_path}
 
 
-def summarise(rows: list[dict], split: str) -> str:
+def summarise(rows: list[dict], split: str, log_entries: list[dict] | None = None) -> str:
     model = yaml.safe_load(open(ROOT / "config" / "assistant.yaml", encoding="utf-8"))["model"]
     lines = [f"# Assistant evaluation: {split} questions", "",
              f"Model `{model}`. {len(rows)} questions. A question passes when every check that applies passes; "
@@ -204,7 +211,14 @@ def summarise(rows: list[dict], split: str) -> str:
               f"- API calls made: {sum(r['api_calls'] for r in rows)}; served from the cache: "
               f"{sum(r['cached_calls'] for r in rows)} (of {calls})",
               f"- Tokens: {sum(r['tokens_in'] for r in rows):,} in, {sum(r['tokens_out'] for r in rows):,} out",
-              f"- Cost: £{sum(r['cost_gbp'] for r in rows):.4f} (each dollar counted as a pound, D-037)", "",
+              f"- Cost: £{sum(r['cost_gbp'] for r in rows):.4f} (each dollar counted as a pound, D-037)"]
+    if log_entries is not None:
+        u = [e for e in log_entries if not e["cached"]]
+        lines += [f"- From the call log for this run: {len(u)} API calls, {sum(e['input_tokens'] for e in u):,} tokens in, "
+                  f"{sum(e['output_tokens'] for e in u):,} out, £{sum(e['cost_gbp'] for e in log_entries):.4f}. "
+                  "Calls served from the cache here may have been paid for by an earlier, interrupted run; "
+                  "see data/assistant/calls.jsonl or `python -m pipeline.assistant.ask --spend` for all spend."]
+    lines += ["",
               "## Failures", ""]
     fails = [(r["id"], c, r[f"{c}_reason"]) for r in rows for c in CHECKS if r[c] == "fail"]
     lines += [f"- {i} {c}{' (rough)' if c in ROUGH else ''}: {why}" for i, c, why in fails] or ["- none"]

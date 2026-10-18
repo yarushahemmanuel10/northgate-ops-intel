@@ -114,10 +114,30 @@ def _clean(content: list[dict]) -> list[dict]:
     return out
 
 
+LIST_MARKER = re.compile(r"(?m)^\s*\d+[.)]\s")
+BRACKET = re.compile(r"\[([^\]]+)\]")
+
+
+def citations(answer: str) -> tuple[set[str], set[str]]:
+    """(KB IDs, other sources) cited in square brackets. Only bracketed citations count (D-039): naming an
+    article in a sentence, e.g. "KB-0026 was replaced", is not citing it. One bracket may hold several
+    sources separated by commas or semicolons: [v_at_risk, v_kpi_bq06_summary]."""
+    kb, other = set(), set()
+    for group in BRACKET.findall(answer):
+        for item in re.split(r"[,;]", group):
+            item = item.strip()
+            if not item:
+                continue
+            m = re.match(r"KB-\d{4}\b", item)
+            (kb if m else other).add(m.group(0) if m else item)
+    return kb, other
+
+
 def _numbers(text: str) -> list[tuple[str, float, float]]:
-    """(as written, value, tolerance) for each number in the text, ignoring dates, years and IDs."""
+    """(as written, value, tolerance) for each number in the text, ignoring dates, years, IDs and the
+    markers of a numbered list ("3. Remind the user...")."""
     out = []
-    for m in NUMBER.finditer(DATES.sub(" ", text)):
+    for m in NUMBER.finditer(DATES.sub(" ", LIST_MARKER.sub(" ", text))):
         whole, frac, unit = m.group(1).replace(",", ""), m.group(2) or "", (m.group(3) or "").lower()
         value, tol = float(whole + frac), 0.5 * 10 ** -(len(frac) - 1 if frac else 0)
         scale = {"k": 1e3, "m": 1e6, "million": 1e6, "bn": 1e9}.get(unit, 1)
@@ -133,16 +153,15 @@ def check_answer(answer: str, question: str, results: list[dict], kb_cfg: dict) 
     warnings = []
     retrieved = {s for r in results for s in r.get("sources", []) if s.startswith("KB-")}
     views = {s for r in results for s in r.get("sources", []) if not s.startswith("KB-")}
-    cited_kb = set(re.findall(r"KB-\d{4}", answer))
-    cited_views = {c for c in re.findall(r"\[([^\]]+)\]", answer) for c in [c.strip()] if not c.startswith("KB-")}
+    cited_kb, cited_views = citations(answer)
     if "KB-0026" in cited_kb:
         warnings.append("Cites KB-0026, which is superseded by KB-0015.")
     if cited_kb - retrieved:
         warnings.append(f"Cites articles not returned for this question: {', '.join(sorted(cited_kb - retrieved))}.")
     if cited_views - views:
         warnings.append(f"Cites sources not returned for this question: {', '.join(sorted(cited_views - views))}.")
-    for pair in kb_cfg.get("conflicts", []):
-        if set(pair) <= retrieved and cited_kb & set(pair) and not set(pair) <= cited_kb:
+    for pair in kb_cfg.get("conflicts", []):         # fires only when the answer cites one of the pair, not both
+        if set(pair) <= retrieved and len(cited_kb & set(pair)) == 1:
             warnings.append(f"Only one of the conflicting articles {' and '.join(pair)} is cited.")
     evidence = [v for _, v, _ in _numbers(question)]
     for r in results:
