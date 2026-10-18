@@ -1,7 +1,7 @@
 # Assistant settings (step 5.4, D-037). Read by pipeline/assistant/.
 
 model: claude-haiku-5-5          # cheapest current model with tool use (prices below)
-max_tokens: 1024                 # per reply
+max_tokens: 2048                 # per reply (raised from 1024, D-040: T02 baseline answer was cut off)
 max_tool_rounds: 5               # model -> tools -> model loops per question before it must stop
 
 prices:                          # US dollars per million tokens, prompts up to 100K tokens
