@@ -664,3 +664,16 @@ Decided by the project author after D-039. These are general rules, not fixes fo
 - **Finding, not changed**: the Alerts page's "Recent runs" table shows all-rule totals to every role (counts only, no records or names). Listed as a known limitation.
 - **Summary**: `docs/phase6_summary.md` (linked from the README) lists what was built, the measured results and ten known limitations. These include two added at this review: the Docker images were not scanned for vulnerabilities, and the Docker volumes are readable by anyone who can run `docker` on the machine. `docs/03_requirements.md` has a new section 4 tracing the brief's security and privacy requirements to code and evidence.
 
+## D-048: README, handover and traceability for handover (step 7.1)
+- **README** rewritten as the front door: a provenance paragraph (fictional company, synthetic data with an answer key, code written by an AI builder under the author's direction and checked), a two-minute summary with four headline results, "How the results were checked", a quick start, a layer diagram, known limitations and a documentation map. The existing step-by-step commands and phase sections follow.
+- **Headline figures, each re-checked against its source before writing:**
+  - Customer matching: 0 wrong automatic matches out of 2,937 held-out records, and 5,535 automatic matches across both halves after the one dev error was fixed. This is from `python -m eval.resolution_eval report`, re-run for this step (D-020, D-021). A figure of 5,655 suggested for the README does not appear in any result and was not used.
+  - Revenue: all five lines reconcile; each gap is under £1, from the references being reported in whole pounds (D-026).
+  - Assistant: 13/14 held-out (D-042).
+  - Masking: 302/302 held-out (D-043).
+- **Traceability matrix** in `docs/03_requirements.md` filled for all 16 questions, with a status column and no blank cells. Where something was not built, the cell says so with the reason. Result: 9 met, 6 partly met (BQ-03, 08, 09, 10 and 12 have a KPI view but no dashboard page or no tool; BQ-11 lacks past-ticket search), 1 not built.
+- **BQ-15 not built**: step 5.6 (weekly summary) was deferred on 2026-10-18 so Phase 6 had the time it needed. It is recorded here because it had not been written down as a decision before.
+- **Held-out data questions read for documentation**: to map DH01–DH04 to business questions, their wording was read after the final evaluation (D-042). Nothing has been or will be tuned on them.
+- **`docs/handover.md`**: where everything is, how to run it, what to edit to change each threshold, rule or role and what to run afterwards, how to add a data source, the checks to run, and suggested next steps.
+- **Links**: every relative link in the README, the handover, the Phase 6 summary and the requirements resolves to a real file (checked).
+

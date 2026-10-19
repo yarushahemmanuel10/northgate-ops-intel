@@ -193,26 +193,30 @@ of scope.
 
 ## 3. Traceability matrix
 
-Filled in as later phases are built. A blank cell after its phase is finished is a gap.
+Filled in at the end of Phase 7 (D-048). "Not built" always gives the reason. KPI views live in the warehouse
+(`pipeline/warehouse/kpis.py`); "dashboard" names the page that shows them. Alert rules are in
+`config/alert_rules.yaml` (D-034); assistant tools in `pipeline/tools/data.py` (D-036) and
+`pipeline/assistant/kb_tool.py` (D-035). Question IDs: T = knowledge-base tuning, H = knowledge-base held-out,
+DT = data tuning, DH = data held-out (`eval/questions/`); evaluation scripts are in `eval/`.
 
-| BQ | Layer(s) | KPI (Phase 4) | Alert or flow (Phase 5) | LLM tool or capability (Phase 5) | Eval question ids (Phase 5) |
-|---|---|---|---|---|---|
-| BQ-01 | 3 | | | | |
-| BQ-02 | 4 | | | | |
-| BQ-03 | 3 | | | | |
-| BQ-04 | 1, 3 | | | | |
-| BQ-05 | 3, 4 | | | | |
-| BQ-06 | 1–5 | | | | |
-| BQ-07 | 2, 3 | | | | |
-| BQ-08 | 1, 2, 5 | | | | |
-| BQ-09 | 2, 3 | | | | |
-| BQ-10 | 3 | | | | |
-| BQ-11 | 5 | | | `search_knowledge_base` (D-035, D-040) + 13 data tools (D-036); past-ticket search deferred (D-043) | T01–T20, DT01–DT08 (tuning); H01–H10, DH01–DH04 (held-out) — **partly met** |
-| BQ-12 | 3 | | | | |
-| BQ-13 | 1, 2 | | | | |
-| BQ-14 | 1, 2, 4 | | | | |
-| BQ-15 | 5 | | | | |
-| BQ-16 | 1, 3 | | | | |
+| BQ | Layer(s) | KPI (Phase 4) | Alert or flow (Phase 5) | LLM tool or capability (Phase 5) | Evaluation | Status |
+|---|---|---|---|---|---|---|
+| BQ-01 | 3 | `v_kpi_bq01_sla_monthly`, `v_kpi_bq01_summary`; dashboard Service | Not built: no alert rule was agreed for monthly compliance in step 5.1 (D-034); breaches show per ticket through BQ-02 | `sla_compliance`; `metric_definition` | DT06, DT08 (decline: no breakdown by category), DH01 (answer correct; failed only because the checker cannot verify a calculated figure, D-042); `eval/sla_eval.py` matches the generator's rule exactly (D-033) | Met |
+| BQ-02 | 4 | `v_kpi_bq02_open_tickets`, `v_kpi_bq02_summary`; dashboard Service | `ticket_about_to_breach`, `p1_open_2h` | `open_ticket_alerts` | DT02; DH03 (active alerts) | Met |
+| BQ-03 | 3 | `v_kpi_bq03_resolution_time` (view only, not on a dashboard page) | Not built: a trend, no alert rule agreed in step 5.1 (D-034) | Not built: no tool reads this view; recorded as a tool gap in D-036 | No question written for it | Partly met (view only) |
+| BQ-04 | 1, 3 | `v_kpi_bq04_ticket_volume`; dashboard Customers | `unusual_ticket_volume` | `unusual_ticket_volume` | DH02 | Met |
+| BQ-05 | 3, 4 | `v_kpi_bq05_renewals` (view only, not on a dashboard page) | Not built: no alert rule agreed in step 5.1 (D-034) | `renewals` | DT04; `eval/kpi_checks.py` explains 37 vs 36 renewals (D-032) | Met through the assistant and the view; not on the dashboard |
+| BQ-06 | 1–5 | `v_at_risk`, `v_kpi_bq06_summary`; dashboard Customers | `customer_at_risk` | `at_risk_customers` | DT03; `eval/at_risk_eval.py`: 9 of 10 before review, 10 of 10 after (D-028) | Met |
+| BQ-07 | 2, 3 | `v_revenue`, `v_kpi_bq07_revenue_monthly`, `v_dash_revenue_*`; dashboard Overview | Not built: no threshold for revenue changes was agreed (D-030, D-034) | `revenue_by_line`, `revenue_monthly` | DT01, DT05; `eval/reconciliation.py`: all five lines reconcile (D-026); `eval/dedup_eval.py` (D-024) | Met |
+| BQ-08 | 1, 2, 5 | `v_kpi_bq08_customer_summary` (view only, not on a dashboard page) | Not built: no alert rule agreed in step 5.1 (D-034) | Not built: no single-customer tool (D-036); the assistant declines | DT07 (decline: one customer's ticket history) | Partly met (view only) |
+| BQ-09 | 2, 3 | `v_kpi_bq09_lines_taken` (view only, not on a dashboard page) | Not built: no alert rule agreed in step 5.1 (D-034) | Not built: no tool reads this view (D-036) | No question written for it | Partly met (view only) |
+| BQ-10 | 3 | `v_kpi_bq10_delivery_monthly` (view only, not on a dashboard page) | Not built: no alert rule agreed in step 5.1 (D-034) | Not built: no tool reads this view (D-036) | No question written for it | Partly met (view only) |
+| BQ-11 | 5 | Not applicable: answered by the assistant, not a KPI | Not applicable | `search_knowledge_base` (D-035, D-040) + 13 data tools (D-036); past-ticket search deferred (D-043) | T01–T20, DT01–DT08 (tuning, 26/28 frozen); H01–H10, DH01–DH04 (held-out, 13/14) | **Partly met** (knowledge base and data questions; past-ticket search deferred) |
+| BQ-12 | 3 | `v_kpi_bq12_kb_usage`, `v_kpi_bq12_link_share` (views only, not on a dashboard page) | Not built: no alert rule agreed in step 5.1 (D-034) | Not built: no tool reads these views (D-036) | `eval/kpi_checks.py`: 11 articles linked after superseding = 15 planted − 4 removed (D-032) | Partly met (views only) |
+| BQ-13 | 1, 2 | `v_kpi_bq13_crm_telecoms`; dashboard Data quality | `crm_billing_mismatch` | `crm_billing_mismatches` | No question written for it; tolerance analysis in D-030 (every date gap at least 31 days) | Met |
+| BQ-14 | 1, 2, 4 | `v_kpi_bq14_sources`, `_matching`, `_findings`, `_review_queue`, `_review_summary`; dashboard Data quality and Customers | Not built: no alert rule agreed (D-034); alert runs themselves are logged | `data_quality_summary` | DT05 (revenue on Unknown); `eval/validation_report.py` (D-018); `eval/resolution_eval.py`: 0 wrong automatic matches of 2,937 held-out (D-020, D-021) | Met |
+| BQ-15 | 5 | Not built: step 5.6 (weekly summary) was deferred so Phase 6 had the time it needed (decision of 2026-10-18, D-048) | Not built (same reason) | Not built (same reason) | None | **Not built** |
+| BQ-16 | 1, 3 | `v_kpi_bq16_onboarding`; dashboard Customers | Not built: no alert rule agreed in step 5.1 (D-034) | `onboarding` | No question written for it | Met |
 
 ## 4. Security and privacy requirements (Phase 6)
 

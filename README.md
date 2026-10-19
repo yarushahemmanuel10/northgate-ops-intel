@@ -1,14 +1,135 @@
 # Northgate Ops Intel
 
-A small working prototype of an AI-assisted operational intelligence platform for a
-**fictional** managed IT services provider, Northgate IT Services Ltd.
+Northgate IT Services Ltd is a **fictional** company, and all data here is **synthetic**: generated from a fixed
+seed, with deliberate quality problems planted in it and an answer key recording every one. The code was written
+by an AI builder (Claude) under my direction. I approved each step before it was built, reviewed it afterwards,
+and checked the results independently; see [How the results were checked](#how-the-results-were-checked).
 
-> **All data in this project is synthetic.** Northgate IT Services Ltd is a fictional company.
-> No real company's name, branding or data is used. "Northgate IT Services Ltd" is a
-> made-up company name and has no connection to any real company called Northgate,
-> including Northgate plc in Darlington.
+> "Northgate IT Services Ltd" is a made-up name with no connection to any real company called Northgate,
+> including Northgate plc in Darlington. No real company's name, branding or data is used.
 
-Status: in progress. Full documentation will be added in Phase 7.
+## Two-minute summary
+
+**The problem.** Northgate is a managed IT services provider with five business lines. Its data sits in four
+systems that don't agree: a CRM spreadsheet, a helpdesk, a telecoms billing export and a web shop, plus a
+knowledge base. Customer names are spelt differently in each, dates and amounts come in mixed formats, records are
+duplicated, and managers answer questions such as "which customers are at risk?" or "are we meeting our SLAs?"
+by hand, if at all ([`docs/02_as_is_architecture.md`](docs/02_as_is_architecture.md)).
+
+**What the prototype does.** It ingests and validates all five sources, matches each record to one customer, and
+loads a star-schema warehouse in DuckDB. On top of that it computes KPI views for 14 of the 16 business questions,
+shows the main ones on a Streamlit dashboard and raises alerts. An AI assistant (Claude Haiku 5.5) answers from the knowledge base and from
+read-only data tools, citing its sources, and says so when it can't answer. Ticket text is masked; demo roles
+decide who sees what; an audit log records actions; and the whole thing runs in Docker.
+
+**Headline results**
+
+| Result | Figure | Detail |
+|---|---|---|
+| Customer matching | **0 wrong automatic matches out of 2,937** records on the held-out half (5,535 automatic matches across both halves, after one development-half error was found and fixed) | D-020, D-021 |
+| Revenue | **All five business lines reconcile** with the generator's independent figures, total £4,673,914.13; each gap is under £1 and comes from the references being reported in whole pounds | D-026 |
+| AI assistant | **13 of 14 held-out questions**, run once against the frozen assistant; the one failure was a correct answer the checker could not verify | D-042 |
+| Masking personal data | **302 of 302** planted names, phone numbers and emails caught on held-out tickets, 0 false masks, on synthetic data | D-043 |
+
+What it does not do, and where the results are weaker, is under [Known limitations](#known-limitations).
+
+## How the results were checked
+
+- **An answer key the pipeline never reads.** The generator writes the clean data and a record of every planted
+  problem to `data/clean/` and `data/ground_truth/`. Only evaluation code in `eval/` and the tests may read them; a
+  test scans all pipeline code and fails if it refers to the answer key, the generator or its configuration.
+- **Held-out sets, opened once.** Matching, masking and the assistant were each tuned on a development set and
+  then scored once on a held-out set: customers and tickets split by a hash of their ID, and evaluation questions
+  committed unopened and run once against the frozen assistant (`git tag assistant-frozen`). Every change made
+  after seeing a result is recorded in `DECISIONS.md` with the scores before and after.
+- **Independent checks.** The 42 evaluation questions were written by a separate AI reviewer (a different Claude
+  session from the builder) from the knowledge base and tool definitions only, without the answer key
+  ([`eval/questions/README.md`](eval/questions/README.md)). I reviewed each step before accepting it and re-checked
+  results myself, for example by counting the planted personal data left in the masked export (0 of 579).
+- **Reproduced in Docker.** On my Intel Mac, the containers regenerated the data from the seed and ran the whole
+  pipeline, producing the same figures as the local run: the same revenue to the penny, 68 records on the Unknown
+  customer, 29 alerts and 280 knowledge-base sections (D-046).
+- **Re-runnable.** Every number in this README comes from a script in `eval/` or from `python -m pipeline.run`;
+  427 tests run with `uv run pytest`.
+
+## Quick start
+
+On a Mac or Linux machine with [uv](https://docs.astral.sh/uv/) installed:
+
+```
+uv sync
+uv run python -m generator.run                                   # synthetic data and answer key, from the seed
+uv run uvicorn shop_api.app:app --host 127.0.0.1 --port 8765     # mock shop API, in a second terminal
+uv run python -m pipeline.run                                    # the whole pipeline, with a summary
+uv run streamlit run dashboard/app.py                            # dashboard at http://127.0.0.1:8501
+```
+
+Or in Docker (no Python needed on the machine): see [Running in Docker](#running-in-docker-phase-6).
+The assistant needs an Anthropic API key in `.env` (copy `.env.example`); everything else runs without one.
+
+## How it fits together
+
+```mermaid
+flowchart LR
+    subgraph Sources["Sources (synthetic)"]
+        CRM[CRM spreadsheet]
+        HD[Helpdesk export]
+        TB[Telecoms billing]
+        SHOP[Shop API]
+        KB[Knowledge base]
+    end
+    subgraph L1["Layer 1: ingest, validate, match"]
+        ING[Staging with lineage] --> VAL[Typed and validated] --> RES[Customer matching + review queue]
+    end
+    subgraph L2["Layer 2: warehouse"]
+        WH[(DuckDB star schema)]
+    end
+    subgraph L3["Layer 3: KPIs"]
+        KPI[KPI views] --> DASH[Streamlit dashboard]
+    end
+    subgraph L4["Layer 4: alerts"]
+        AL[Alert runner + history]
+    end
+    subgraph L5["Layer 5: assistant"]
+        AS[Claude Haiku 5.5 with KB search + 13 read-only data tools]
+    end
+    Sources --> ING
+    RES --> WH --> KPI
+    KPI --> AL
+    KPI --> AS
+    KB --> AS
+    P6["Phase 6, across all layers: masked ticket text, demo roles, audit log, Docker"]
+```
+
+The 16 business questions, and which layer, KPI, alert, tool and evaluation answer each one, are in the
+[traceability matrix](docs/03_requirements.md#3-traceability-matrix). In short: 9 met, 6 partly met (five where
+a KPI view exists but no dashboard page or tool uses it, and BQ-11 without past-ticket search), and 1 not built
+(BQ-15, the weekly summary).
+
+## Known limitations
+
+- **Synthetic data flatters the results.** Planted problems are regular, so matching and masking scores on real
+  data would be lower; personal data in particular appears in a few fixed phrasings ([`docs/phase6_summary.md`](docs/phase6_summary.md)).
+- **Small evaluation sets.** 28 tuning and 14 held-out assistant questions; the assistant's checker cannot verify
+  calculated figures (T17, DH01), and the model once cited a document it only saw mentioned (DT06) (D-041, D-042).
+- **Roles are a demo, not authentication**, and the audit log records roles and sessions, not people; it detects
+  partial edits, not a full rewrite (D-044, D-045).
+- **Not built:** BQ-15 (weekly summary), assistant search of past tickets, tools for BQ-03, 08, 09, 10 and 12, and
+  dashboard pages for BQ-03, 05, 08, 09, 10 and 12 ([traceability matrix](docs/03_requirements.md#3-traceability-matrix)).
+- **Docker:** images not scanned for vulnerabilities; volumes readable by anyone who can run `docker` (D-046).
+- The full list, with reasons, is in [`docs/phase6_summary.md`](docs/phase6_summary.md#known-limitations) and in
+  each decision in [`DECISIONS.md`](DECISIONS.md).
+
+## Documentation map
+
+| Document | What it is |
+|---|---|
+| [`docs/handover.md`](docs/handover.md) | How to run, change and extend the prototype |
+| [`DECISIONS.md`](DECISIONS.md) | Every design choice (D-001 to D-048), with alternatives and reasons |
+| [`docs/03_requirements.md`](docs/03_requirements.md) | The 16 business questions, acceptance tests, traceability matrix, security and privacy trace |
+| [`docs/phase6_summary.md`](docs/phase6_summary.md) | Masking, roles, audit log and Docker: results and limitations |
+| [`docs/powerbi_relationships.md`](docs/powerbi_relationships.md) | How to load the CSV exports into Power BI |
+| [`eval/questions/README.md`](eval/questions/README.md) | How the evaluation questions were written and scored |
 
 ## Phase 0: Business understanding
 
@@ -34,7 +155,7 @@ uv run pytest -q
 and never touch `data/raw/`. The mock shop API serves `data/raw/shop_orders.json`:
 `uv run uvicorn shop_api.app:app --host 127.0.0.1 --port 8765`.
 
-## Ingesting the raw data (Layer 1)
+## Running it step by step
 
 ```
 uv run uvicorn shop_api.app:app --host 127.0.0.1 --port 8765   # in one terminal
