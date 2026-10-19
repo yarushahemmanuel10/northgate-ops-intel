@@ -16,6 +16,9 @@ WORKDIR /app
 COPY pyproject.toml uv.lock .python-version ./
 RUN uv sync --frozen --no-dev && rm -rf /root/.cache && chmod -R a+rX,go-w /opt/venv
 RUN groupadd --gid 10001 app && useradd --uid 10001 --gid app --no-create-home --shell /usr/sbin/nologin app
+# The app user has no home folder; point HOME at /tmp so any library that keeps settings or a cache there can
+# still write (precaution, D-046). Everything the project itself writes goes under /app/data.
+ENV HOME=/tmp
 
 FROM base AS pipeline
 COPY generator/ generator/

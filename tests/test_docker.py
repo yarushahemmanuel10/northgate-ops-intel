@@ -138,3 +138,12 @@ def test_copied_files_are_readable_by_the_app_user_and_writable_only_in_data():
         assert chowns == ["/app/data"], (name, chowns)      # the app user owns nothing but the data folders
         assert "--chown" not in stage(name), name
     assert "chmod -R a+rX,go-w /opt/venv" in stage("base")
+
+
+def test_app_user_has_a_writable_home_and_writes_only_under_data():
+    """D-046: HOME=/tmp for libraries; the project's own writes all go under the data folders (see D-046 audit)."""
+    assert re.search(r"^ENV HOME=/tmp$", stage("base"), flags=re.M)
+    code = "\n".join(p.read_text(encoding="utf-8") for d in ("generator", "pipeline", "shop_api", "dashboard")
+                     for p in (ROOT / d).rglob("*.py"))
+    # the only write outside data/ in project code is the README table, which now skips when README is absent
+    assert code.count('ROOT / "README.md"') == 1 and "if not path.exists():" in (ROOT / "generator" / "run.py").read_text()

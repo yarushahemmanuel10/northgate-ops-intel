@@ -61,7 +61,13 @@ def build_all(cfg: dict, base: Path = ROOT, seed: int | None = None) -> dict:
             "dirs": (clean, raw, truth)}
 
 
-def update_readme(path: Path = ROOT / "README.md") -> None:
+def update_readme(path: Path | None = None) -> bool:
+    """Refresh the README's files table. Skipped, with one line, when there is no README: the Docker image does
+    not contain it, and the data does not depend on it (D-046)."""
+    path = path or ROOT / "README.md"
+    if not path.exists():
+        print(f"README not found at {path}; files table not updated (the data is unaffected).")
+        return False
     text = path.read_text(encoding="utf-8")
     block = f"<!-- files-table:start -->\n{FILES_TABLE}\n<!-- files-table:end -->"
     if "<!-- files-table:start -->" in text:
@@ -69,6 +75,7 @@ def update_readme(path: Path = ROOT / "README.md") -> None:
     else:
         text = text.rstrip() + "\n\n## What is committed and what is generated\n\n" + block + "\n"
     path.write_text(text, encoding="utf-8")
+    return True
 
 
 def summary(cfg: dict, out: dict) -> str:

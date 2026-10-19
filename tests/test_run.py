@@ -45,3 +45,16 @@ def test_single_generators_never_change_data_raw(module):
                    capture_output=True, timeout=120)
     after = _hashes(ROOT / "data" / "raw") | {f"gt/{k}": v for k, v in _hashes(ROOT / "data" / "ground_truth").items()}
     assert before == after
+
+
+def test_main_runs_without_a_readme(tmp_path, monkeypatch, capsys):
+    """D-046: the Docker image has no README.md; the generator must finish and say it skipped the table."""
+    import generator.run as run
+    monkeypatch.setattr(run, "ROOT", tmp_path)                       # a project root with no README.md
+    monkeypatch.setattr(run, "build_all", lambda cfg: {"stub": True})  # no real data is written by this test
+    monkeypatch.setattr(run, "summary", lambda cfg, out: "summary printed")
+    run.main()
+    out = capsys.readouterr().out
+    assert "README not found" in out and "files table not updated" in out and "summary printed" in out
+    assert not (tmp_path / "README.md").exists()
+    assert run.update_readme(tmp_path / "README.md") is False
