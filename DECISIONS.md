@@ -676,4 +676,5 @@ Decided by the project author after D-039. These are general rules, not fixes fo
 - **Held-out data questions read for documentation**: to map DH01–DH04 to business questions, their wording was read after the final evaluation (D-042). Nothing has been or will be tuned on them.
 - **`docs/handover.md`**: where everything is, how to run it, what to edit to change each threshold, rule or role and what to run afterwards, how to add a data source, the checks to run, and suggested next steps.
 - **Links**: every relative link in the README, the handover, the Phase 6 summary and the requirements resolves to a real file (checked).
+- **Reverted at the author's request (2026-10-19):** the 7.1 follow-up wording (second AI reviewer in the opening paragraph and the checking section; the review-queue-decisions limitation in the README and the handover) and the licence line were reverted, returning the README and handover to their 7.1 wording. The diagram fix (48a1604) is kept.
 
