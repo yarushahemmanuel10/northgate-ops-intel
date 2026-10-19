@@ -95,11 +95,11 @@ flowchart LR
     subgraph L5["Layer 5: assistant"]
         AS[Claude Haiku 5.5 with KB search + 13 read-only data tools]
     end
-    Sources --> ING
+    CRM & HD & TB & SHOP & KB --> ING
     RES --> WH --> KPI
     KPI --> AL
     KPI --> AS
-    KB --> AS
+    VAL -- "KB articles, search index" --> AS
     P6["Phase 6, across all layers: masked ticket text, demo roles, audit log, Docker"]
 ```
 
