@@ -641,4 +641,12 @@ Decided by the project author after D-039. These are general rules, not fixes fo
   - **Reads outside the image contents:** only `README.md` (fixed) and `.env` (assistant only, never in compose). `PYTHONDONTWRITEBYTECODE=1` stops Python writing `__pycache__` into the read-only code folders.
   - **Precaution:** the app user has no home folder, so `HOME=/tmp` is set in the images for any library that keeps settings or a cache there. Not observed failing.
   - **Remaining risk:** DuckDB could need a temporary spill folder next to the read-only warehouse for a very large dashboard query; the dashboard's queries are small. A test checks that `HOME=/tmp` is set and that the README path is the project's only write outside `data/`.
+- **Docker run on the author's Mac, 2026-10-19 (Intel, linux/amd64), at commit dfb0ada: all steps passed.**
+  - **Build:** `docker compose build` built the two images.
+  - **Run:** `docker compose run --rm pipeline` ran `generate` (exit 0, README skipped), waited for `shop_api` to be healthy, then ran the pipeline. The figures were identical to the host: revenue BL1 £1,685,375.00, BL2 £1,072,853.46, BL3 £712,058.33, BL4 £469,233.33, BL5 £734,394.00, total £4,673,914.13; Unknown customer 68 rows, £9,790.00; 47 exports, `ticket_text` not exported; 29 alerts (3 about to breach, 0 P1, 10 at risk, 6 unusual volume, 10 mismatches); KB index 280 sections from 49 articles. The audit head was anchored at seq 2.
+  - **Dashboard:** at 127.0.0.1:8501 it opened as Service desk agent (Service and Alerts only, customer IDs without names). As Operations director it listed all five pages and showed masked recent tickets ("Contact [NAME] …").
+  - **Least privilege:** `uid=10001(app)`; `/app/data` held only alerts, audit and warehouse; `/app/config` had no `generator.yaml`; there was no `/app/generator`; writing to the warehouse gave "Read-only file system".
+  - **Audit:** `pipeline.audit.verify` reported 27 entries, chain intact, anchor seq 2, 0 older than retention. That is 2 pipeline entries, 1 session start, 9 role changes and 15 page visits.
+  - **Host untouched:** the warehouse was still dated 18 Oct 18:58, there was no `data/audit` on the host, and `git status` was clean.
+  - **Note:** one SLA chart on the Service page looked clipped in a screenshot, probably a zoom from scrolling (Streamlit charts zoom on scroll). Reset by double-clicking; to be checked in the Phase 6 review.
 
