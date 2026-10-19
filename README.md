@@ -3,7 +3,8 @@
 Northgate IT Services Ltd is a **fictional** company, and all data here is **synthetic**: generated from a fixed
 seed, with deliberate quality problems planted in it and an answer key recording every one. The code was written
 by an AI builder (Claude) under my direction. I approved each step before it was built, reviewed it afterwards,
-and checked the results independently; see [How the results were checked](#how-the-results-were-checked).
+and re-checked the results with a second AI reviewer working independently of the builder; see
+[How the results were checked](#how-the-results-were-checked).
 
 > "Northgate IT Services Ltd" is a made-up name with no connection to any real company called Northgate,
 > including Northgate plc in Darlington. No real company's name, branding or data is used.
@@ -44,8 +45,9 @@ What it does not do, and where the results are weaker, is under [Known limitatio
   after seeing a result is recorded in `DECISIONS.md` with the scores before and after.
 - **Independent checks.** The 42 evaluation questions were written by a separate AI reviewer (a different Claude
   session from the builder) from the knowledge base and tool definitions only, without the answer key
-  ([`eval/questions/README.md`](eval/questions/README.md)). I reviewed each step before accepting it and re-checked
-  results myself, for example by counting the planted personal data left in the masked export (0 of 579).
+  ([`eval/questions/README.md`](eval/questions/README.md)). I reviewed each step before accepting it, and I
+  re-checked results with a second AI reviewer (a separate Claude session) that read the warehouse and answer key
+  independently of the builder, for example counting the planted personal data left in the masked export (0 of 579).
 - **Reproduced in Docker.** On my Intel Mac, the containers regenerated the data from the seed and ran the whole
   pipeline, producing the same figures as the local run: the same revenue to the penny, 68 records on the Unknown
   customer, 29 alerts and 280 knowledge-base sections (D-046).
@@ -114,6 +116,8 @@ a KPI view exists but no dashboard page or tool uses it, and BQ-11 without past-
   calculated figures (T17, DH01), and the model once cited a document it only saw mentioned (DT06) (D-041, D-042).
 - **Roles are a demo, not authentication**, and the audit log records roles and sessions, not people; it detects
   partial edits, not a full rewrite (D-044, D-045).
+- **Review-queue decisions:** the 14 matching review-queue decisions were proposed by the reviewing AI and accepted
+  by me; they are recorded with reviewer "Author" in `config/review_decisions.csv` (D-029).
 - **Not built:** BQ-15 (weekly summary), assistant search of past tickets, tools for BQ-03, 08, 09, 10 and 12, and
   dashboard pages for BQ-03, 05, 08, 09, 10 and 12 ([traceability matrix](docs/03_requirements.md#3-traceability-matrix)).
 - **Docker:** images not scanned for vulnerabilities; volumes readable by anyone who can run `docker` (D-046).
@@ -130,6 +134,11 @@ a KPI view exists but no dashboard page or tool uses it, and BQ-11 without past-
 | [`docs/phase6_summary.md`](docs/phase6_summary.md) | Masking, roles, audit log and Docker: results and limitations |
 | [`docs/powerbi_relationships.md`](docs/powerbi_relationships.md) | How to load the CSV exports into Power BI |
 | [`eval/questions/README.md`](eval/questions/README.md) | How the evaluation questions were written and scored |
+
+## Licence
+
+No licence: all rights reserved. The repository is shared privately for review; please ask before reusing any part
+of it.
 
 ## Phase 0: Business understanding
 
