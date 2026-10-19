@@ -213,3 +213,18 @@ Filled in as later phases are built. A blank cell after its phase is finished is
 | BQ-14 | 1, 2, 4 | | | | |
 | BQ-15 | 5 | | | | |
 | BQ-16 | 1, 3 | | | | |
+
+## 4. Security and privacy requirements (Phase 6)
+
+What the project brief asked for on secrets, personal data and access, where each is built, and the evidence.
+
+| Requirement (from the brief) | Built in | Evidence | Status |
+|---|---|---|---|
+| API key only in `.env`, git-ignored, never printed or committed | `pipeline/assistant/llm.py`, `.gitignore` | Tests: key read from `.env` only, `.env` ignored, `.env.example` empty; history check of all 69 commits: no `.env`, no `data/`, no `sk-ant-` (6.6, D-047) | Met |
+| Only KB text and aggregated results go to the API; customer IDs, never names | `pipeline/assistant/guard.py`, `pipeline/tools/` | Outgoing-request test over every tool and value (D-037) | Met |
+| Mask personal data in ticket text before it is used anywhere outside the warehouse | `pipeline/mask/`, `ticket_text_masked` | Held-out recall 302/302, no false masks, measured on synthetic data (D-043) | Met, with the synthetic-data caveat |
+| Past tickets in the assistant only after masking | (deferred) | The frozen assistant was evaluated without ticket search (D-042, D-043) | Deferred; BQ-11 partly met |
+| Roles decide who sees what | `config/roles.yaml`, `dashboard/common.py`, `pipeline/roles/` | 31 role tests: every role against every page and tool (D-044) | Met as a demo, not authentication |
+| Record who did what | `pipeline/audit/` | Hash chain, anchor and retention tests; Docker run verified 27 entries intact (D-045, D-046) | Met; roles and sessions, not people |
+| Runs in a container without exposing data or secrets | `Dockerfile`, `docker-compose.yml` | Static tests, plus the run on the author's Intel Mac: non-root, read-only warehouse, no generator in the dashboard, host data untouched (D-046) | Met; images not scanned |
+

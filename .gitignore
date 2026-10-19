@@ -3,7 +3,9 @@
 .env.*
 !.env.example
 
-# Generated data (reproducible from the seeded generator)
+# Generated data (reproducible from the seeded generator). The whole folder is ignored, so a new subfolder
+# can never be committed by accident (step 6.6); the lines below are kept for readability.
+data/
 data/raw/
 data/clean/
 data/staging/

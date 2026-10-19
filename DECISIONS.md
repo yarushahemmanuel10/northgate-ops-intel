@@ -650,3 +650,17 @@ Decided by the project author after D-039. These are general rules, not fixes fo
   - **Host untouched:** the warehouse was still dated 18 Oct 18:58, there was no `data/audit` on the host, and `git status` was clean.
   - **Note:** one SLA chart on the Service page looked clipped in a screenshot, probably a zoom from scrolling (Streamlit charts zoom on scroll). Reset by double-clicking; to be checked in the Phase 6 review.
 
+## D-047: Phase 6 review (step 6.6)
+- **Tests**: 427 passing.
+- **Git history check before publishing**: across all 69 commits on every ref (`main`, the tag `assistant-frozen`; no stashes):
+  - no path matching `.env` or `.env.*` was ever committed, apart from `.env.example`, which never held a value after `ANTHROPIC_API_KEY=`;
+  - no file under `data/` was ever committed;
+  - no commit contains the string `sk-ant-`, and no diff ever added a line with it.
+
+  The search printed only counts and commit IDs. As a check on the method, the same search finds the fake test key `sk-test-` in 22 commits. No history rewrite is needed.
+- **Blanket `data/` ignore**: every existing folder under `data/` was ignored one by one, so a new subfolder would not have been. `data/` is now ignored as a whole, and a test checks that `.env`, `.env.local` and a made-up `data/brand_new_folder/x.csv` are ignored while `.env.example` is not.
+- **SLA chart**: the chart in the author's screenshot showed an axis of 0.82–0.96 with lines running off it. The code sets no axis limits, the plotted values run from 0.643 to 1.0, and a fresh render draws 0.0–1.0 with every line inside. It was a zoom from scrolling (Streamlit charts zoom on scroll); no change was made.
+- **Screenshots** refreshed in `docs/screenshots/`. Five pages as the operations director; Service and Alerts as the service desk agent; Data quality as the data steward. Each page rendered with no exceptions and the right "demo role" caption. The copies on the Mac are 5,770 bytes larger than those made in the workspace, from the transfer; the pixels were checked identical.
+- **Finding, not changed**: the Alerts page's "Recent runs" table shows all-rule totals to every role (counts only, no records or names). Listed as a known limitation.
+- **Summary**: `docs/phase6_summary.md` (linked from the README) lists what was built, the measured results and ten known limitations. These include two added at this review: the Docker images were not scanned for vulnerabilities, and the Docker volumes are readable by anyone who can run `docker` on the machine. `docs/03_requirements.md` has a new section 4 tracing the brief's security and privacy requirements to code and evidence.
+

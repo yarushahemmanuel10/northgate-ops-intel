@@ -147,3 +147,13 @@ def test_app_user_has_a_writable_home_and_writes_only_under_data():
                      for p in (ROOT / d).rglob("*.py"))
     # the only write outside data/ in project code is the README table, which now skips when README is absent
     assert code.count('ROOT / "README.md"') == 1 and "if not path.exists():" in (ROOT / "generator" / "run.py").read_text()
+
+
+def test_git_ignores_secrets_and_every_path_under_data():
+    """Step 6.6 pre-publish: .env, any .env.* except the example, and any new folder under data/ are ignored."""
+    import subprocess
+    def ignored(path):
+        return subprocess.run(["git", "check-ignore", "-q", "--no-index", path], cwd=ROOT).returncode == 0
+    for path in (".env", ".env.local", "data/brand_new_folder/x.csv", "data/warehouse/northgate.duckdb", "data/audit/audit.jsonl"):
+        assert ignored(path), path
+    assert not ignored(".env.example")

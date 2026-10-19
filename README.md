@@ -108,6 +108,12 @@ Stop it with Ctrl+C. To rebuild everything from the raw files first, start the s
 | **Customers** | **Data quality** |
 | ![Customers](docs/screenshots/customers.png) | ![Data quality](docs/screenshots/data_quality.png) |
 
+Screenshots taken as the operations director. The same pages as other demo roles: `docs/screenshots/service_agent.png`,
+`alerts_agent.png` (service desk agent) and `data_quality_steward.png` (data steward).
+
+**Phase 6 (masking, roles, audit log, Docker): see [docs/phase6_summary.md](docs/phase6_summary.md)** for what was
+built, the measured results and the known limitations.
+
 ## Assistant evaluation (Phase 5)
 
 The assistant (Claude Haiku 5.5 with knowledge-base search and 13 read-only data tools, D-035 to D-037) was scored by `eval/assistant_eval.py` on questions it never saw while being built:
@@ -154,7 +160,7 @@ All data in Docker lives in named volumes (`work`, `warehouse`, `alerts`, `audit
 |---|---|---|---|
 | `config/generator.yaml` | Yes | Every generator setting (seed, volumes, rates) | Hand-written |
 | `docs/`, `DECISIONS.md`, `README.md` | Yes | Business understanding, decisions, this file | Hand-written (this table by `generator.run`) |
-| `dashboard/`, `.streamlit/config.toml`, `docs/screenshots/` | Yes | Streamlit dashboard, its local-only settings, one screenshot per page | Hand-written (D-032) |
+| `dashboard/`, `.streamlit/config.toml`, `docs/screenshots/` | Yes | Streamlit dashboard, its local-only settings, screenshots per page and role | Hand-written (D-032, D-047) |
 | `config/vocabulary.yaml`, `semantic/data_dictionary.yaml`, `semantic/metrics.yaml` | Yes | Ticket-category vocabulary, data dictionary with personal-data flags, metric definitions | Hand-written (D-022) |
 | `generator/`, `shop_api/`, `tests/` | Yes | Code and tests | Hand-written |
 | `knowledge_base/*.md`, `knowledge_base/_meta.yaml` | Yes | 50 KB documents and their ground truth | Hand-written (D-014) |
